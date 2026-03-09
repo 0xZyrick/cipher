@@ -1,7 +1,7 @@
 export const WORLD_ADDRESS  = import.meta.env.VITE_WORLD_ADDRESS  as string;
 export const ACTIONS_ADDRESS = import.meta.env.VITE_ACTIONS_ADDRESS as string;
-export const RPC_URL        = import.meta.env.VITE_RPC_URL        || "http://localhost:5050";
-export const TORII_URL      = import.meta.env.VITE_TORII_URL      || "http://localhost:8080";
+export const RPC_URL = import.meta.env.VITE_RPC_URL as string;
+export const TORII_URL = import.meta.env.VITE_TORII_URL as string;
 
 // Piece definitions
 export const PIECES = [

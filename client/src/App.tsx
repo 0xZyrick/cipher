@@ -30,20 +30,7 @@ export default function App() {
 
   return (
     <div className="app-shell">
-      <div className="topbar">
-        <div className="topbar-logo">
-          CIPHER
-          <span>HIDDEN RANKS · ONCHAIN · STARKNET</span>
-        </div>
-        {gameId && screen !== "lobby" && (
-          <div style={{ fontFamily: "var(--font-ui)", fontSize: 10, letterSpacing: "0.2em", color: "var(--text-dim)" }}>
-            GAME {gameId}
-          </div>
-        )}
-        <div className="btn-wallet connected">
-          {shortAddr}
-        </div>
-      </div>
+
 
       {screen === "lobby" && <LobbyPage onGame={handleGame} />}
       {screen === "placement" && gameId && (

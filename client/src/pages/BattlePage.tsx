@@ -191,6 +191,24 @@ export function BattlePage({ gameId, onLeave }: Props) {
   const [originCell, setOriginCell] = useState<string | null>(null);
   const [blastCell, setBlastCell] = useState<string | null>(null);
 
+  // Floating combat labels
+  type FloatLabel = { id: number; text: string; cellKey: string };
+  const [floatingLabels, setFloatingLabels] = useState<FloatLabel[]>([]);
+  const floatIdRef = useRef(0);
+
+  function emitFloat(text: string, cellKey: string) {
+    const id = ++floatIdRef.current;
+    setFloatingLabels(prev => [...prev, { id, text, cellKey }]);
+    setTimeout(() => setFloatingLabels(prev => prev.filter(f => f.id !== id)), 1600);
+  }
+
+  // Battle commencing banner
+  const [showCommencing, setShowCommencing] = useState(true);
+  useEffect(() => {
+    const t = setTimeout(() => setShowCommencing(false), 2400);
+    return () => clearTimeout(t);
+  }, []);
+
   // Combat modal state
   const [showCombatModal, setShowCombatModal] = useState(false);
   const [combatPhase, setCombatPhase] = useState<CombatPhase>("active");
@@ -368,12 +386,10 @@ export function BattlePage({ gameId, onLeave }: Props) {
     if (!combat) return;
     setLoading(true); setError(null);
 
-    // Get defender rank (we ARE the defender)
     const defRank = getRank(gameId, combat.defender_piece_id);
     const defSalt = getSalt(gameId, combat.defender_piece_id);
     const conseq = getConsequence(combat.attacker_rank, defRank);
 
-    // Blast on defender cell
     const defPiece = pieces.find(p => p.piece_id === combat.defender_piece_id);
     if (defPiece) {
       const key = `${defPiece.x}_${defPiece.y}`;
@@ -381,32 +397,35 @@ export function BattlePage({ gameId, onLeave }: Props) {
       setTimeout(() => setBlastCell(null), 750);
     }
 
-    // Phase 1: flip animation
+    // Determine float text
+    const floatText = conseq.kind === "bomb" ? "💥 BOMB!"
+      : conseq.kind === "draw" ? "⚖ DRAW!"
+      : conseq.kind === "spy_marshal" ? "☠ SILENCED!"
+      : attackerRankForFloat(combat.attacker_rank, defRank) > defRank ? "💀 DESTROYED!"
+      : "💀 DEFEATED!";
+
     setCombatPhase("flipping");
 
     try {
       await actions.resolveCombat(gameId, combat.defender_piece_id, defRank, defSalt);
 
-      // After 700ms (flip completes), show revealed rank
       await new Promise(r => setTimeout(r, 700));
       setSavedDefenderRank(defRank);
       setCombatPhase("revealed");
 
-      // After 500ms, show consequence
       await new Promise(r => setTimeout(r, 500));
       setConsequence(conseq);
       setCombatPhase("consequence");
 
-      // Bomb special: flash screen
       if (conseq.kind === "bomb") {
         setShowBombFlash(true);
         setTimeout(() => setShowBombFlash(false), 800);
       }
 
-      // Refetch while consequence is showing
-      await refetch();
+      // Emit floating label on board
+      if (defPiece) emitFloat(floatText, `${defPiece.x}_${defPiece.y}`);
 
-      // Auto-close after consequence
+      await refetch();
       await new Promise(r => setTimeout(r, 1800));
     } catch (e: unknown) {
       setError((e as Error).message);
@@ -420,6 +439,8 @@ export function BattlePage({ gameId, onLeave }: Props) {
     }
   }
 
+  function attackerRankForFloat(a: number, d: number) { return a; }
+
   const myPieces = pieces.filter(p => p.owner.toLowerCase() === myAddress && p.is_alive);
   const oppPieces = pieces.filter(p => p.owner.toLowerCase() !== myAddress && p.is_alive);
   const amDefender = combat?.is_active && pieces.find(p => p.piece_id === combat.defender_piece_id)?.owner.toLowerCase() === myAddress;
@@ -432,16 +453,42 @@ export function BattlePage({ gameId, onLeave }: Props) {
 
   return (
     <>
+      {/* ── Battle Commencing Banner ── */}
+      {showCommencing && (
+        <div style={{
+          position: "fixed", inset: 0, zIndex: 200, display: "flex", alignItems: "center", justifyContent: "center",
+          background: "radial-gradient(ellipse at center, rgba(20,10,5,0.92) 0%, rgba(0,0,0,0.97) 100%)",
+          animation: "commencingFadeOut 2.4s ease-out forwards",
+          pointerEvents: "none",
+        }}>
+          <div style={{ textAlign: "center" }}>
+            <div style={{
+              fontFamily: "var(--font-title)", fontSize: "clamp(28px, 5vw, 56px)", fontWeight: 900,
+              color: "#c8902a", letterSpacing: "0.25em",
+              animation: "commencingPulse 0.8s ease-in-out 3",
+            }}>⚔ BATTLE COMMENCING ⚔</div>
+            <div style={{
+              fontFamily: "var(--font-ui)", fontSize: 13, letterSpacing: "0.3em",
+              color: "var(--text-dim)", marginTop: 14,
+            }}>DEPLOY YOUR STRATEGY</div>
+          </div>
+        </div>
+      )}
+
       <div className="game-frame">
         {/* ── Left Panel ── */}
-        <div className="side-panel">
+        <div className="side-panel" style={{
+          background: "linear-gradient(180deg, rgba(20,14,8,0.97) 0%, rgba(12,8,4,0.99) 100%)",
+          borderRight: "1px solid rgba(184,130,26,0.18)",
+          boxShadow: "inset -4px 0 16px rgba(0,0,0,0.5)",
+        }}>
           {/* MY card */}
           <div className={`player-card${isMyTurn ? " is-active" : ""}`}>
             <div className="player-card-name">You</div>
             <div className="player-card-addr">{short(myAddr)}</div>
             <div className="player-card-row">
               <div>
-                <div className="info-card-label" style={{ fontSize: 7 }}>Forces</div>
+                <div className="piece-count-label">Forces</div>
                 <div className="piece-count">{myPieces.length}</div>
               </div>
               <div className={`timer${isMyTurn ? " active" : ""}${myTime < 60 && isMyTurn ? " danger" : ""}`}>
@@ -456,7 +503,7 @@ export function BattlePage({ gameId, onLeave }: Props) {
             <div className="player-card-addr">{short(oppAddr)}</div>
             <div className="player-card-row">
               <div>
-                <div className="info-card-label" style={{ fontSize: 7 }}>Forces</div>
+                <div className="piece-count-label">Forces</div>
                 <div className="piece-count enemy">{oppPieces.length}</div>
               </div>
               <div className={`timer${!isMyTurn ? " active" : ""}${oppTime < 60 && !isMyTurn ? " danger" : ""}`}>
@@ -519,6 +566,16 @@ export function BattlePage({ gameId, onLeave }: Props) {
                           isCombat={combat?.is_active && (combat.attacker_piece_id === piece.piece_id || combat.defender_piece_id === piece.piece_id)}
                         />
                       )}
+                      {floatingLabels.filter(f => f.cellKey === key).map(f => (
+                        <div key={f.id} style={{
+                          position: "absolute", top: 0, left: "50%", transform: "translateX(-50%)",
+                          zIndex: 50, pointerEvents: "none",
+                          fontFamily: "var(--font-ui)", fontSize: 11, fontWeight: 800,
+                          color: "#ff4444", textShadow: "0 0 6px #ff0000, 0 1px 0 #000",
+                          letterSpacing: "0.08em", whiteSpace: "nowrap",
+                          animation: "floatUp 1.6s ease-out forwards",
+                        }}>{f.text}</div>
+                      ))}
                     </div>
                   );
                 })
@@ -528,7 +585,11 @@ export function BattlePage({ gameId, onLeave }: Props) {
         </div>
 
         {/* ── Right Panel ── */}
-        <div className="side-panel">
+        <div className="side-panel" style={{
+          background: "linear-gradient(180deg, rgba(20,14,8,0.97) 0%, rgba(12,8,4,0.99) 100%)",
+          borderLeft: "1px solid rgba(184,130,26,0.18)",
+          boxShadow: "inset 4px 0 16px rgba(0,0,0,0.5)",
+        }}>
           <div className="info-card">
             <div className="info-card-label">Game ID</div>
             <div className="info-card-value" style={{ fontSize: 9, opacity: 0.6, wordBreak: "break-all" }}>{gameId}</div>
@@ -573,7 +634,7 @@ export function BattlePage({ gameId, onLeave }: Props) {
       {showBombFlash && <div className="bomb-flash" />}
 
       {/* ── Combat Modal ── */}
-      {showCombatModal && (
+      {showCombatModal && game.status !== STATUS_FINISHED && (
         <div className={`combat-overlay${combatBurst ? " combat-burst" : ""}`}>
           <div className="combat-modal">
             <div className="combat-title">⚔ &nbsp; COMBAT &nbsp; ⚔</div>

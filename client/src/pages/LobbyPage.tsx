@@ -122,6 +122,21 @@ interface ToastItem { id: number; text: string; dying: boolean; }
 
 let _toastId = 0;
 
+// ── Shield Background ─────────────────────────────────────
+function ShieldBg() {
+  return (
+    <svg className="shield-bg-svg" viewBox="0 0 400 460" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"
+      style={{ position: "fixed", left: "50%", top: "50%", transform: "translate(-50%, -52%)", width: "min(520px, 80vw)", opacity: 0.045, pointerEvents: "none", zIndex: 0 }}>
+      <path d="M200 20 L380 80 L380 220 C380 330 300 410 200 440 C100 410 20 330 20 220 L20 80 Z"
+        fill="#c8902a" stroke="#c8902a" strokeWidth="2"/>
+      <path d="M200 55 L345 105 L345 220 C345 308 278 378 200 405 C122 378 55 308 55 220 L55 105 Z"
+        fill="none" stroke="#c8902a" strokeWidth="1.5" opacity="0.6"/>
+      <line x1="200" y1="55" x2="200" y2="405" stroke="#c8902a" strokeWidth="1" opacity="0.4"/>
+      <line x1="55" y1="160" x2="345" y2="160" stroke="#c8902a" strokeWidth="1" opacity="0.4"/>
+    </svg>
+  );
+}
+
 export function LobbyPage({ onGame }: Props) {
   const { session, connect, disconnect, connecting, error: cartridgeError } = useCartridgeAccount();
   const [activePlayer, setActive] = useState(getActivePlayer());
@@ -131,6 +146,7 @@ export function LobbyPage({ onGame }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [muted, setMuted] = useState(true);
   const [ready, setReady] = useState(false);
+  const [loadProgress, setLoadProgress] = useState(0);
   const [toasts, setToasts] = useState<ToastItem[]>([]);
   const [showJoin, setShowJoin] = useState(false);
 
@@ -138,10 +154,20 @@ export function LobbyPage({ onGame }: Props) {
   const isCartridge = !!session?.isConnected;
   const isP1 = activePlayer.toLowerCase() === PLAYER1.toLowerCase();
 
-  // Simulate loading bar then reveal
+  // Animate loading bar 0→100 over 1.2s then reveal
   useEffect(() => {
-    const t = setTimeout(() => setReady(true), 1200);
-    return () => clearTimeout(t);
+    let frame: number;
+    const start = performance.now();
+    const duration = 1100;
+    function tick(now: number) {
+      const elapsed = now - start;
+      const pct = Math.min(100, (elapsed / duration) * 100);
+      setLoadProgress(pct);
+      if (pct < 100) frame = requestAnimationFrame(tick);
+      else setTimeout(() => setReady(true), 80);
+    }
+    frame = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(frame);
   }, []);
 
   function addToast(text: string) {
@@ -204,6 +230,9 @@ export function LobbyPage({ onGame }: Props) {
 
   return (
     <>
+      {/* Shield background */}
+      <ShieldBg />
+
       {/* Skull background */}
       <div className="skull-bg" aria-hidden="true">
         <SkullSVG />
@@ -271,8 +300,13 @@ export function LobbyPage({ onGame }: Props) {
 
         {/* Loading bar → fades into buttons */}
         {!ready && (
-          <div className="lobby-loader">
-            <div className="lobby-loader-fill" />
+          <div className="lobby-loader" style={{ position: "relative" }}>
+            <div className="lobby-loader-fill" style={{ width: `${loadProgress}%`, transition: "width 0.05s linear" }} />
+            <span style={{
+              position: "absolute", right: 0, top: "-18px",
+              fontFamily: "var(--font-ui)", fontSize: 9, letterSpacing: "0.2em",
+              color: "var(--text-dim)",
+            }}>{Math.round(loadProgress)}%</span>
           </div>
         )}
 
