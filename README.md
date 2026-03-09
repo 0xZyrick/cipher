@@ -1,76 +1,159 @@
-![Dojo Starter](./assets/cover.png)
+# Cipher
 
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset=".github/mark-dark.svg">
-  <img alt="Dojo logo" align="right" width="120" src=".github/mark-light.svg">
-</picture>
+> Hidden ranks. Onchain combat. Starknet.
 
-<a href="https://x.com/ohayo_dojo">
-<img src="https://img.shields.io/twitter/follow/dojostarknet?style=social"/>
-</a>
-<a href="https://github.com/dojoengine/dojo/stargazers">
-<img src="https://img.shields.io/github/stars/dojoengine/dojo?style=social"/>
-</a>
+Cipher is a two-player war game where nobody knows what they're walking into until combat forces a reveal. You place your army in secret. You move blind. When pieces clash, ranks are exposed onchain — the stronger piece survives, the weaker one is gone for good. Find and capture the enemy Flag to win.
 
-[![discord](https://img.shields.io/badge/join-dojo-green?logo=discord&logoColor=white)](https://discord.com/invite/dojoengine)
-[![Telegram Chat][tg-badge]][tg-url]
-
-[tg-badge]: https://img.shields.io/endpoint?color=neon&logo=telegram&label=chat&style=flat-square&url=https%3A%2F%2Ftg.sumanjay.workers.dev%2Fdojoengine
-[tg-url]: https://t.me/dojoengine
-
-# Dojo Starter: Official Guide
-
-A quickstart guide to help you build and deploy your first Dojo provable game.
-
-Read the full tutorial [here](https://dojoengine.org/tutorial/dojo-starter).
-
-## Running Locally
-
-#### Terminal one (Make sure this is running)
-
-```bash
-# Run Katana
-katana --dev --dev.no-fee
-```
-
-#### Terminal two
-
-```bash
-# Build the example
-sozo build
-
-# Inspect the world
-sozo inspect
-
-# Migrate the example
-sozo migrate
-
-# Start Torii
-# Replace <WORLD_ADDRESS> with the address of the deployed world from the previous step
-torii --world <WORLD_ADDRESS> --http.cors_origins "*"
-```
-
-## Docker
-You can start stack using docker compose. [Here are the installation instruction](https://docs.docker.com/engine/install/)
-
-```bash
-docker compose up
-```
-You'll get all services logs in the same terminal instance. Whenever you want to stop just ctrl+c
+Every move hits the chain. Every rank is locked in as a Poseidon hash commitment the moment you place your piece. You cannot change it. You cannot lie. Combat is the only moment truth is forced onchain.
 
 ---
 
-## Contribution
+## Play
 
-1. **Report a Bug**
+**Live:** [playcipher.vercel.app](https://playcipher.vercel.app)
 
-    - If you think you have encountered a bug, and we should know about it, feel free to report it [here](https://github.com/dojoengine/dojo-starter/issues) and we will take care of it.
+**Video:** [Watch Gameplay](https://youtu.be/zV9K-KGHW00)
 
-2. **Request a Feature**
+Two players needed:
 
-    - You can also request for a feature [here](https://github.com/dojoengine/dojo-starter/issues), and if it's viable, it will be picked for development.
+1. Open two browsers — connect a wallet on each using [Cartridge Controller](https://docs.cartridge.gg/controller)
+2. Player one clicks **Create Game** — copy the Game ID
+3. Player two clicks **Join Campaign** — paste the Game ID
+4. Both players deploy their 10 pieces in their deployment zone
+5. Take turns moving and attacking
+6. Capture the enemy Flag to win
 
-3. **Create a Pull Request**
-    - It can't get better then this, your pull request will be appreciated by the community.
+---
 
-Happy coding!
+## How It Works
+
+### Cryptographic Fog of War
+
+Every piece placement stores a commitment onchain:
+
+```
+rank_commitment = poseidon_hash(rank, salt)
+```
+
+The actual rank never touches the chain until combat forces a reveal. When you attack, you reveal your rank and salt — the contract re-hashes and verifies it matches what you committed. You cannot change your piece's rank after placing it. The game is cheat-proof by design.
+
+### Piece Ranks
+
+| Piece | Rank | Special Rule |
+|-------|------|--------------|
+| Flag | 0 | Capture this to win |
+| Bomb | — | Kills all attackers except Miner |
+| Spy | 1 | Beats Marshal when attacking |
+| Scout | 2 | Moves any distance |
+| Miner | 3 | Defuses Bombs |
+| Captain | 6 | — |
+| Major | 7 | — |
+| Colonel | 8 | — |
+| General | 9 | — |
+| Marshal | 10 | Highest rank |
+
+### Combat Resolution
+
+All combat resolves deterministically onchain:
+
+- Higher rank wins
+- Spy beats Marshal (attacker only)
+- Miner defuses Bomb
+- Flag capture = instant win
+- Ties = mutual destruction
+
+### Two-Phase Turn Structure
+
+A move onto an occupied square suspends the game in `PendingCombat` state. Neither player can move until the defender calls `resolve_combat`. Turn count advances only after resolution.
+
+---
+
+## Tech Stack
+
+| Layer | Technology |
+|-------|-----------|
+| Smart Contracts | Cairo + Dojo Engine 1.8.0 |
+| World State | Dojo models (Game, Piece, Square, PendingCombat) |
+| Realtime Sync | Torii indexer |
+| Wallet | Cartridge Controller |
+| Deployment | Slot / Starknet Sepolia |
+| Frontend | React + TypeScript + Vite |
+
+---
+
+## Contract Architecture
+
+```
+src/
+├── models.cairo        # Game, Piece, Square, PlayerGame, PendingCombat, GameCounter
+├── lib.cairo           # World entry
+└── systems/
+    └── actions.cairo   # create_game, place_piece, ready, move_piece,
+                        # resolve_combat, forfeit
+```
+
+### Key Models
+
+- **Game** — tracks players, status, turn, piece counts
+- **Piece** — stores rank_commitment, position, alive state
+- **Square** — maps board positions to pieces
+- **PendingCombat** — holds attacker/defender during combat phase
+- **PlayerGame** — links wallet address to active game
+
+---
+
+## Development
+
+### Prerequisites
+
+- [Scarb](https://docs.swmansion.com/scarb/) 
+- [Dojo](https://book.dojoengine.org/) 1.8.0
+- [Node.js](https://nodejs.org/) 18+
+
+### Setup
+
+```bash
+# Clone the repo
+git clone https://github.com/0xZyrick/cipher
+cd cipher
+# GitHub: https://github.com/0xZyrick/cipher
+
+# Build contracts
+scarb build
+
+# Start local chain
+katana
+
+# Start indexer (separate terminal)
+torii
+
+# Install frontend deps
+cd client
+npm install
+
+# Start frontend
+npm run dev
+```
+
+### Environment Variables
+
+Create `client/.env.local`:
+
+```env
+VITE_WORLD_ADDRESS=
+VITE_ACTIONS_ADDRESS=
+VITE_RPC_URL=
+VITE_TORII_URL=
+```
+
+### Deploy to Slot
+
+```bash
+sozo migrate --profile slot
+```
+
+---
+
+## License
+
+MIT

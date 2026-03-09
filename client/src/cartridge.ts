@@ -24,8 +24,9 @@ export const cartridgeConnector = new ControllerConnector({
   policies,
   chains: [{ 
     rpcUrl: RPC_URL,
-    id: "0x534e5f5345504f4c4941" // Starknet Sepolia chain ID
+    id: "0x534e5f5345504f4c4941"
   }],
   defaultChainId: "0x534e5f5345504f4c4941",
   colorMode: "dark",
+  propagateSessionErrors: true,
 } as never);
