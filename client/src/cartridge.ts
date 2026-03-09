@@ -22,10 +22,7 @@ const policies = {
 
 export const cartridgeConnector = new ControllerConnector({
   policies,
-  chains: [{ 
-    rpcUrl: RPC_URL,
-    id: "0x534e5f5345504f4c4941"
-  }],
+  chains: [{ rpcUrl: RPC_URL }],  
   defaultChainId: "0x534e5f5345504f4c4941",
   colorMode: "dark",
   propagateSessionErrors: true,

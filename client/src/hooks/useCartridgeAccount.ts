@@ -42,6 +42,8 @@ export function useCartridgeAccount() {
     setConnecting(true);
     setError(null);
     try {
+      // Force fresh session — clears stale nonce
+      await cartridgeConnector.disconnect().catch(() => {});
       await cartridgeConnector.connect();
       const account = await cartridgeConnector.account(provider);
       const address = account?.address || "";

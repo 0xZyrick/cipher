@@ -196,11 +196,61 @@ export function BattlePage({ gameId, onLeave }: Props) {
   const [floatingLabels, setFloatingLabels] = useState<FloatLabel[]>([]);
   const floatIdRef = useRef(0);
 
-  function emitFloat(text: string, cellKey: string) {
+  const emitFloat = useCallback((text: string, cellKey: string) => {
     const id = ++floatIdRef.current;
     setFloatingLabels(prev => [...prev, { id, text, cellKey }]);
-    setTimeout(() => setFloatingLabels(prev => prev.filter(f => f.id !== id)), 1600);
-  }
+    setTimeout(() => setFloatingLabels(prev => prev.filter(f => f.id !== id)), 2800);
+  }, []);
+
+  // ── Auto-resolve combat (no modal) ────────────────────────
+  const handleResolveCombat = useCallback(async () => {
+    if (!combat) return;
+    setLoading(true); setError(null);
+    const defRank = getRank(gameId, combat.defender_piece_id);
+    const defSalt = getSalt(gameId, combat.defender_piece_id);
+    const conseq = getConsequence(combat.attacker_rank, defRank);
+    const defPiece = pieces.find(p => p.piece_id === combat.defender_piece_id);
+    const floatText = conseq.kind === 'bomb' ? '💥 BOMB!'
+      : conseq.kind === 'draw' ? '⚖ DRAW!'
+      : conseq.kind === 'spy_marshal' ? '☠ SILENCED!'
+      : combat.attacker_rank > defRank ? '💀 DESTROYED!'
+      : '💀 DEFEATED!';
+    try {
+      await actions.resolveCombat(gameId, combat.defender_piece_id, defRank, defSalt);
+      if (defPiece) {
+        const key = `${defPiece.x}_${defPiece.y}`;
+        setBlastCell(key);
+        setTimeout(() => setBlastCell(null), 900);
+        emitFloat(floatText, key);
+      }
+      if (conseq.kind === 'bomb') {
+        setShowBombFlash(true);
+        setTimeout(() => setShowBombFlash(false), 800);
+      }
+      await refetch();
+    } catch (e: unknown) {
+      setError((e as Error).message);
+    } finally {
+      setLoading(false);
+    }
+  }, [combat, pieces, gameId, actions, refetch, emitFloat]);
+
+  const resolveRef = useRef(handleResolveCombat);
+  resolveRef.current = handleResolveCombat;
+
+  // Detect when we are the defender and auto-resolve
+  const prevCombatKeyRef = useRef('');
+  useEffect(() => {
+    if (!combat?.is_active) { prevCombatKeyRef.current = ''; return; }
+    const defPiece = pieces.find(p => p.piece_id === combat.defender_piece_id);
+    const isWeDefender = defPiece?.owner.toLowerCase() === (ACTIVE_PLAYER?.toLowerCase() ?? '');
+    if (!isWeDefender) return;
+    const cKey = `${combat.attacker_piece_id}-${combat.defender_piece_id}`;
+    if (prevCombatKeyRef.current === cKey) return;
+    prevCombatKeyRef.current = cKey;
+    const t = setTimeout(() => resolveRef.current(), 550);
+    return () => clearTimeout(t);
+  }, [combat?.is_active, combat?.attacker_piece_id, combat?.defender_piece_id, pieces]);
 
   // Battle commencing banner
   const [showCommencing, setShowCommencing] = useState(true);
@@ -209,12 +259,7 @@ export function BattlePage({ gameId, onLeave }: Props) {
     return () => clearTimeout(t);
   }, []);
 
-  // Combat modal state
-  const [showCombatModal, setShowCombatModal] = useState(false);
-  const [combatPhase, setCombatPhase] = useState<CombatPhase>("active");
-  const [combatBurst, setCombatBurst] = useState(false);
-  const [savedDefenderRank, setSavedDefenderRank] = useState<number | null>(null);
-  const [consequence, setConsequence] = useState<{ kind: ConsequenceKind; text: string } | null>(null);
+  // Combat / animation states
   const [showBombFlash, setShowBombFlash] = useState(false);
 
   // Timers
@@ -222,20 +267,6 @@ export function BattlePage({ gameId, onLeave }: Props) {
   const [oppTime, setOppTime] = useState(TIMER_SECS);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const prevTurn = useRef<string>("");
-
-  // Track combat activation
-  const prevCombatActive = useRef(false);
-  useEffect(() => {
-    if (combat?.is_active && !prevCombatActive.current) {
-      setShowCombatModal(true);
-      setCombatPhase("active");
-      setSavedDefenderRank(null);
-      setConsequence(null);
-      setCombatBurst(true);
-      setTimeout(() => setCombatBurst(false), 600);
-    }
-    prevCombatActive.current = combat?.is_active ?? false;
-  }, [combat?.is_active]);
 
   // Timer logic
   useEffect(() => {
@@ -382,68 +413,8 @@ export function BattlePage({ gameId, onLeave }: Props) {
     finally { setLoading(false); }
   }
 
-  async function handleResolveCombat() {
-    if (!combat) return;
-    setLoading(true); setError(null);
-
-    const defRank = getRank(gameId, combat.defender_piece_id);
-    const defSalt = getSalt(gameId, combat.defender_piece_id);
-    const conseq = getConsequence(combat.attacker_rank, defRank);
-
-    const defPiece = pieces.find(p => p.piece_id === combat.defender_piece_id);
-    if (defPiece) {
-      const key = `${defPiece.x}_${defPiece.y}`;
-      setBlastCell(key);
-      setTimeout(() => setBlastCell(null), 750);
-    }
-
-    // Determine float text
-    const floatText = conseq.kind === "bomb" ? "💥 BOMB!"
-      : conseq.kind === "draw" ? "⚖ DRAW!"
-      : conseq.kind === "spy_marshal" ? "☠ SILENCED!"
-      : attackerRankForFloat(combat.attacker_rank, defRank) > defRank ? "💀 DESTROYED!"
-      : "💀 DEFEATED!";
-
-    setCombatPhase("flipping");
-
-    try {
-      await actions.resolveCombat(gameId, combat.defender_piece_id, defRank, defSalt);
-
-      await new Promise(r => setTimeout(r, 700));
-      setSavedDefenderRank(defRank);
-      setCombatPhase("revealed");
-
-      await new Promise(r => setTimeout(r, 500));
-      setConsequence(conseq);
-      setCombatPhase("consequence");
-
-      if (conseq.kind === "bomb") {
-        setShowBombFlash(true);
-        setTimeout(() => setShowBombFlash(false), 800);
-      }
-
-      // Emit floating label on board
-      if (defPiece) emitFloat(floatText, `${defPiece.x}_${defPiece.y}`);
-
-      await refetch();
-      await new Promise(r => setTimeout(r, 1800));
-    } catch (e: unknown) {
-      setError((e as Error).message);
-      setCombatPhase("active");
-    } finally {
-      setLoading(false);
-      setShowCombatModal(false);
-      setCombatPhase("active");
-      setSavedDefenderRank(null);
-      setConsequence(null);
-    }
-  }
-
-  function attackerRankForFloat(a: number, d: number) { return a; }
-
   const myPieces = pieces.filter(p => p.owner.toLowerCase() === myAddress && p.is_alive);
   const oppPieces = pieces.filter(p => p.owner.toLowerCase() !== myAddress && p.is_alive);
-  const amDefender = combat?.is_active && pieces.find(p => p.piece_id === combat.defender_piece_id)?.owner.toLowerCase() === myAddress;
 
   const p1Addr = game.player1;
   const p2Addr = game.player2;
@@ -527,7 +498,7 @@ export function BattlePage({ gameId, onLeave }: Props) {
         {/* ── Board ── */}
         <div className="board-container">
           <div className="board-frame">
-            <div className="board">
+            <div className="board" style={{ position: 'relative' }}>
               {Array.from({ length: BOARD_SIZE }, (_, row) =>
                 Array.from({ length: BOARD_SIZE }, (_, col) => {
                   const key = `${col}_${row}`;
@@ -568,18 +539,39 @@ export function BattlePage({ gameId, onLeave }: Props) {
                       )}
                       {floatingLabels.filter(f => f.cellKey === key).map(f => (
                         <div key={f.id} style={{
-                          position: "absolute", top: 0, left: "50%", transform: "translateX(-50%)",
+                          position: "absolute", top: '-4px', left: '50%',
+                          transform: "translateX(-50%)",
                           zIndex: 50, pointerEvents: "none",
-                          fontFamily: "var(--font-ui)", fontSize: 11, fontWeight: 800,
-                          color: "#ff4444", textShadow: "0 0 6px #ff0000, 0 1px 0 #000",
-                          letterSpacing: "0.08em", whiteSpace: "nowrap",
-                          animation: "floatUp 1.6s ease-out forwards",
+                          background: "rgba(90,6,6,0.94)",
+                          border: "1px solid rgba(220,55,55,0.5)",
+                          padding: "4px 10px", borderRadius: "3px",
+                          fontFamily: "var(--font-head)", fontSize: 14, fontWeight: 900,
+                          color: "#ff9090", textShadow: "0 1px 0 rgba(0,0,0,0.9)",
+                          letterSpacing: "0.06em", whiteSpace: "nowrap",
+                          animation: "floatUp 2.8s ease-out forwards",
                         }}>{f.text}</div>
                       ))}
                     </div>
                   );
                 })
               )}
+              {/* Lake blobs — irregular water SVG shapes */}
+              <div style={{
+                position: 'absolute',
+                left: 'calc(2 * var(--cell) + 2px)', top: 'calc(4 * var(--cell) + 4px)',
+                width: 'calc(2 * var(--cell) + 1px)', height: 'calc(2 * var(--cell) + 1px)',
+                overflow: 'visible', pointerEvents: 'none',
+              }}>
+                <LakeBlob blobId="left" />
+              </div>
+              <div style={{
+                position: 'absolute',
+                left: 'calc(6 * var(--cell) + 6px)', top: 'calc(4 * var(--cell) + 4px)',
+                width: 'calc(2 * var(--cell) + 1px)', height: 'calc(2 * var(--cell) + 1px)',
+                overflow: 'visible', pointerEvents: 'none',
+              }}>
+                <LakeBlob blobId="right" />
+              </div>
             </div>
           </div>
         </div>
@@ -633,91 +625,6 @@ export function BattlePage({ gameId, onLeave }: Props) {
       {/* ── Bomb Flash ── */}
       {showBombFlash && <div className="bomb-flash" />}
 
-      {/* ── Combat Modal ── */}
-      {showCombatModal && game.status !== STATUS_FINISHED && (
-        <div className={`combat-overlay${combatBurst ? " combat-burst" : ""}`}>
-          <div className="combat-modal">
-            <div className="combat-title">⚔ &nbsp; COMBAT &nbsp; ⚔</div>
-
-            <div className="combat-pieces">
-              {/* Attacker — always revealed */}
-              <div className="combat-piece">
-                <div className="combat-piece-label">Attacker</div>
-                <div className="piece piece-own" style={{ width: 74, height: 74, borderRadius: 8 }}>
-                  <div className="piece-icon">
-                    <RankIcon rank={combat!.attacker_rank} size={28} />
-                  </div>
-                </div>
-                <div className="combat-piece-name" style={{ color: "#90b8f0" }}>
-                  {RANK_NAME[combat!.attacker_rank] ?? "Unknown"}
-                </div>
-              </div>
-
-              <div className="combat-vs">VS</div>
-
-              {/* Defender — flips to reveal */}
-              <div className="combat-piece">
-                <div className="combat-piece-label">Defender</div>
-                <div className="rank-card">
-                  <div className={`rank-card-inner${combatPhase === "revealed" || combatPhase === "consequence" ? " flipped" : ""}`}>
-                    {/* Front — hidden */}
-                    <div className="rank-face rank-face-front">
-                      <div style={{ fontSize: 28, color: "#b88040", fontFamily: "var(--font-title)", fontWeight: 900 }}>?</div>
-                    </div>
-                    {/* Back — revealed rank */}
-                    <div className="rank-face rank-face-back">
-                      {savedDefenderRank !== null && (
-                        <div className="piece-icon" style={{ color: "#ffb0b0" }}>
-                          <RankIcon rank={savedDefenderRank} size={28} />
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-                <div className="combat-piece-name">
-                  {combatPhase === "revealed" || combatPhase === "consequence"
-                    ? RANK_NAME[savedDefenderRank ?? 0] ?? "Unknown"
-                    : "Rank Hidden"}
-                </div>
-              </div>
-            </div>
-
-            {/* Consequence display */}
-            {combatPhase === "consequence" && consequence && (
-              <div className="consequence-display">
-                <div className={`consequence-text consequence-${consequence.kind}`}>
-                  {consequence.text}
-                </div>
-              </div>
-            )}
-
-            {/* Action buttons */}
-            {combatPhase === "active" && (
-              amDefender ? (
-                <>
-                  <p style={{ fontFamily: "var(--font-body)", fontSize: 13, color: "var(--text)", fontStyle: "italic", marginBottom: 18, letterSpacing: "0.05em" }}>
-                    Reveal your rank to resolve the battle.
-                  </p>
-                  <button className="btn btn-primary" onClick={handleResolveCombat} disabled={loading}>
-                    {loading ? "Revealing..." : "⚡ Reveal & Resolve"}
-                  </button>
-                </>
-              ) : (
-                <p style={{ fontFamily: "var(--font-body)", fontSize: 13, color: "var(--text-dim)", fontStyle: "italic", letterSpacing: "0.05em" }}>
-                  Waiting for opponent to reveal their rank...
-                </p>
-              )
-            )}
-
-            {combatPhase === "flipping" && (
-              <p style={{ fontFamily: "var(--font-body)", fontSize: 13, color: "var(--text-dim)", fontStyle: "italic" }}>
-                Revealing...
-              </p>
-            )}
-          </div>
-        </div>
-      )}
-
       {/* ── Game Over ── */}
       {game.status === STATUS_FINISHED && (
         <div className={`gameover-overlay ${isWinner ? "victory-overlay" : "defeat-overlay"}`}>
@@ -745,32 +652,144 @@ export function BattlePage({ gameId, onLeave }: Props) {
   );
 }
 
+// ── Chunky Soldier Silhouette with depth gradient ─────────
+function SoldierSilhouetteSVG({ pieceId, isOwn, dimmed = false }: {
+  pieceId: number; isOwn: boolean; dimmed?: boolean;
+}) {
+  const gradId = `sg-${pieceId}`;
+  const vlight = isOwn ? '#4a7acc' : '#cc4a4a';
+  const light  = isOwn ? '#1e4a9a' : '#9a1e1e';
+  const main   = isOwn ? '#0d2d6a' : '#6a0d0d';
+  const dark   = isOwn ? '#050e22' : '#220505';
+  const op = dimmed ? 0.45 : 1;
+
+  return (
+    <svg viewBox="0 0 44 58" xmlns="http://www.w3.org/2000/svg"
+      style={{ width: '100%', height: '100%', display: 'block', overflow: 'visible' }}>
+      <defs>
+        <linearGradient id={gradId} x1="0.12" y1="0" x2="0.9" y2="1">
+          <stop offset="0%"   stopColor={vlight} stopOpacity={op}/>
+          <stop offset="38%"  stopColor={light}  stopOpacity={op}/>
+          <stop offset="72%"  stopColor={main}   stopOpacity={op}/>
+          <stop offset="100%" stopColor={dark}   stopOpacity={op}/>
+        </linearGradient>
+      </defs>
+      {/* Ground shadow */}
+      <ellipse cx="22" cy="57" rx="14" ry="2.2" fill="rgba(0,0,0,0.38)" opacity={op}/>
+      {/* Left leg */}
+      <rect x="10" y="37" width="10" height="18" rx="4.5" fill={`url(#${gradId})`}/>
+      {/* Right leg */}
+      <rect x="24" y="37" width="10" height="18" rx="4.5" fill={`url(#${gradId})`}/>
+      {/* Crotch bridge */}
+      <rect x="10" y="37" width="24" height="7" rx="2.5" fill={main} opacity={dimmed ? 0.5 : 0.95}/>
+      {/* Torso — wide solid block */}
+      <rect x="6" y="19" width="32" height="20" rx="6.5" fill={`url(#${gradId})`}/>
+      {/* Left arm */}
+      <rect x="0.5" y="20" width="8" height="16" rx="4" fill={`url(#${gradId})`}/>
+      {/* Right arm */}
+      <rect x="35.5" y="20" width="8" height="16" rx="4" fill={`url(#${gradId})`}/>
+      {/* Neck */}
+      <rect x="16" y="15.5" width="12" height="6.5" rx="3" fill={main} opacity={dimmed ? 0.5 : 0.95}/>
+      {/* Head */}
+      <ellipse cx="22" cy="11" rx="12.5" ry="11" fill={`url(#${gradId})`}/>
+      {/* Helmet dome */}
+      <path d="M9.5,11 Q9.5,-0.5 22,-1 Q34.5,-0.5 34.5,11" fill={vlight} opacity={dimmed ? 0.2 : 0.52}/>
+      {/* Helmet brim */}
+      <rect x="7.5" y="17.5" width="29" height="3.5" rx="1.75" fill={light} opacity={dimmed ? 0.18 : 0.44}/>
+      {/* Face highlight (gives depth) */}
+      <ellipse cx="17" cy="9" rx="4" ry="5.5" fill="white" opacity={dimmed ? 0.02 : 0.08}/>
+      {/* Torso highlight */}
+      <rect x="10" y="22" width="12" height="11" rx="4.5" fill="white" opacity={dimmed ? 0.01 : 0.055}/>
+    </svg>
+  );
+}
+
+// ── Irregular lake SVG blob ────────────────────────────────
+function LakeBlob({ blobId }: { blobId: string }) {
+  const gradId = `lakeG-${blobId}`;
+  return (
+    <svg
+      style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%',
+        pointerEvents: 'none', zIndex: 5, overflow: 'visible' }}
+      viewBox="0 0 200 200" preserveAspectRatio="none"
+    >
+      <defs>
+        <radialGradient id={gradId} cx="40%" cy="33%" r="62%">
+          <stop offset="0%"   stopColor="rgba(195,238,255,0.97)"/>
+          <stop offset="32%"  stopColor="rgba(80,185,238,0.92)"/>
+          <stop offset="68%"  stopColor="rgba(32,120,195,0.87)"/>
+          <stop offset="100%" stopColor="rgba(15,80,150,0.82)"/>
+        </radialGradient>
+      </defs>
+      {/* Irregular organic blob path */}
+      <path
+        d="M24,102 C10,72 16,32 48,16 C70,5 108,0 134,18 C158,35 188,44 194,78 C200,110 190,152 162,166 C138,178 98,192 66,180 C36,168 10,148 6,118 C4,112 14,116 24,102 Z"
+        fill={`url(#${gradId})`}
+      />
+      {/* Top shimmer */}
+      <path d="M40,28 C56,16 84,12 110,24 C92,40 64,38 40,28 Z" fill="rgba(255,255,255,0.32)"/>
+      {/* Bottom shimmer */}
+      <ellipse cx="145" cy="150" rx="24" ry="10" fill="rgba(255,255,255,0.11)" transform="rotate(-28,145,150)"/>
+    </svg>
+  );
+}
+
+// ── Helper ─────────────────────────────────────────────────
+function getWinnerSide(kind: ConsequenceKind, attRank: number, defRank: number): 'attacker' | 'defender' | 'draw' {
+  if (kind === 'draw') return 'draw';
+  if (kind === 'bomb') return 'defender';
+  if (kind === 'spy_marshal') return 'attacker';
+  return attRank > defRank ? 'attacker' : 'defender';
+}
+
 // ── Piece Token Component ──────────────────────────────────
 function PieceToken({ piece, isOwn, gameId, isSelected, isCombat }: {
   piece: PieceState; isOwn: boolean; gameId: string; isSelected: boolean; isCombat: boolean | undefined;
 }) {
   const rank = isOwn ? getRank(gameId, piece.piece_id) : piece.revealed_rank;
   const isRevealed = isOwn || piece.is_revealed;
-  const iconSize = 18;
 
-  let cls = "piece ";
-  if (isOwn) cls += "piece-own";
-  else if (piece.is_revealed) cls += "piece-enemy-revealed";
-  else cls += "piece-hidden";
+  let cls = 'piece ';
+  if (isOwn) cls += 'piece-own';
+  else if (piece.is_revealed) cls += 'piece-enemy-revealed';
+  else cls += 'piece-hidden';
+  if (isSelected || isCombat) cls += ' piece-selected';
 
-  if (isSelected || isCombat) cls += " piece-selected";
+  const rankLabel = rank === 0 ? 'F' : rank === 11 ? 'B' : rank;
 
   return (
     <div className={cls}>
-      <div className="piece-icon">
-        {isRevealed
-          ? <RankIcon rank={rank} size={iconSize} />
-          : <QuestionIcon size={iconSize} />
-        }
+      {/* Chunky silhouette fills whole piece */}
+      <div style={{ width: '100%', height: '100%', position: 'relative' }}>
+        <SoldierSilhouetteSVG pieceId={piece.piece_id} isOwn={isOwn} dimmed={!isRevealed && !isOwn} />
+
+        {/* Rank number — top-left corner */}
+        {isRevealed && (
+          <div style={{
+            position: 'absolute', top: 0, left: 2,
+            fontFamily: 'var(--font-head)', fontWeight: 900,
+            fontSize: 'calc(var(--cell) * 0.26)',
+            color: isOwn ? '#deeeff' : '#ffdede',
+            textShadow: '0 1px 4px rgba(0,0,0,0.95)',
+            lineHeight: 1, zIndex: 5, letterSpacing: '-0.03em',
+            pointerEvents: 'none',
+          }}>
+            {rankLabel}
+          </div>
+        )}
+
+        {/* Rank icon — bottom-right corner, outside silhouette body */}
+        {isRevealed && (
+          <div style={{
+            position: 'absolute', bottom: 1, right: 1,
+            zIndex: 5, pointerEvents: 'none',
+            color: isOwn ? '#90b8f8' : '#f89090',
+            filter: 'drop-shadow(0 1px 3px rgba(0,0,0,0.9))',
+          }}>
+            <RankIcon rank={rank} size={Math.round(Math.max(12, Math.min(18, 16)))} />
+          </div>
+        )}
       </div>
-      {isRevealed && (
-        <div className="piece-rank-badge">{rank}</div>
-      )}
     </div>
   );
 }
