@@ -1,10 +1,10 @@
 import { useState, useEffect } from "react";
 import { PLAYER1, PLAYER2, getActivePlayer, setActivePlayer } from "../player";
 import { useActions } from "../hooks/useActions";
-import { useCartridgeAccount } from "../hooks/useCartridgeAccount";
+import { useAccount, useConnect, useDisconnect } from "@starknet-react/core";
 import { fetchPlayerGame } from "../hooks/useGameState";
 
-interface Props { onGame: (gameId: string, playerAddress: string) => void; }
+interface Props { onGame: (gameId: string, playerAddress: string) => void; account?: import("starknet").AccountInterface | null; }
 
 // ── Inline SVG Icons (no deps) ────────────────────────────
 function IconExit() {
@@ -138,9 +138,11 @@ function ShieldBg() {
 }
 
 export function LobbyPage({ onGame }: Props) {
-  const { session, connect, disconnect, connecting, error: cartridgeError } = useCartridgeAccount();
+  const { address, isConnected, account } = useAccount();
+  const { connect, connectors } = useConnect();
+  const { disconnect } = useDisconnect();
   const [activePlayer, setActive] = useState(getActivePlayer());
-  const actions = useActions(session?.account);
+  const actions = useActions(account);
   const [joinId, setJoinId] = useState("");
   const [loading, setLoading] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -150,8 +152,9 @@ export function LobbyPage({ onGame }: Props) {
   const [toasts, setToasts] = useState<ToastItem[]>([]);
   const [showJoin, setShowJoin] = useState(false);
 
-  const displayAddress = session?.address || activePlayer;
-  const isCartridge = !!session?.isConnected;
+  const displayAddress = address || activePlayer;
+  
+  const isCartridge = isConnected;
   const isP1 = activePlayer.toLowerCase() === PLAYER1.toLowerCase();
 
   // Animate loading bar 0→100 over 1.2s then reveal
@@ -204,6 +207,8 @@ export function LobbyPage({ onGame }: Props) {
   async function handleJoin() {
     if (!joinId.trim()) { addToast("⚔ Enter a Game ID to join"); return; }
     if (!displayAddress) { addToast("⚔ Connect wallet to join a game"); return; }
+    console.log("account:", account);
+    console.log("isConnected:", isConnected);
     setLoading("join"); setError(null);
     const raw = joinId.trim();
     const normalized = raw.startsWith("0x") ? raw : "0x" + parseInt(raw).toString(16);
@@ -211,8 +216,9 @@ export function LobbyPage({ onGame }: Props) {
       await actions.joinGame(normalized);
       onGame(normalized, displayAddress);
     } catch (e: unknown) {
+      console.error("JOIN ERROR FULL:", e);
       setError(e instanceof Error ? e.message : "Error joining game");
-    } finally { setLoading(null); }
+    }
   }
 
   async function handleResume() {
@@ -271,8 +277,8 @@ export function LobbyPage({ onGame }: Props) {
               <div className="pts-counter">⚔ 0 pts</div>
               <div className="wallet-addr-pill">
                 <div className="wallet-avatar">C</div>
-                <span className="wallet-addr-text">{shortAddr(session.address)}</span>
-                <button className="wallet-disconnect" onClick={disconnect} title="Disconnect">
+                <span className="wallet-addr-text">{shortAddr(address || "")}</span>
+                <button className="wallet-disconnect" onClick={() => disconnect()} title="Disconnect">
                   <IconDisconnect />
                 </button>
               </div>
@@ -284,9 +290,9 @@ export function LobbyPage({ onGame }: Props) {
                 <button className={`burner-btn${isP1 ? " active" : ""}`} onClick={() => switchPlayer(PLAYER1)}>P1</button>
                 <button className={`burner-btn${!isP1 ? " active" : ""}`} onClick={() => switchPlayer(PLAYER2)}>P2</button>
               </div>
-              <button className="wallet-btn" onClick={() => { connect(); }} disabled={connecting}>
+              <button className="wallet-btn" onClick={() => connect({ connector: connectors[0] })} disabled={false}>
                 <IconWallet />
-                {connecting ? "Connecting..." : "Connect Wallet"}
+                "Connect Wallet"
               </button>
             </div>
           )}
@@ -362,9 +368,8 @@ export function LobbyPage({ onGame }: Props) {
               </div>
             </div>
 
-            {/* Error */}
-            {(error || cartridgeError) && (
-              <div className="error-msg">{error || cartridgeError}</div>
+            {(error) && (
+              <div className="error-msg">{error}</div>
             )}
           </div>
         )}

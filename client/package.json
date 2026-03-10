@@ -9,13 +9,13 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@cartridge/connector": "0.11.3-alpha.1",
-    "@cartridge/controller": "0.11.3-alpha.1",
+    "@cartridge/connector": "^0.13.9",
+    "@cartridge/controller": "^0.10.5",
     "@dojoengine/core": "1.8.0",
     "@dojoengine/sdk": "1.8.0",
     "@dojoengine/torii-client": "1.8.0",
-    "@starknet-react/chains": "^5.0.1",
-    "@starknet-react/core": "^5.0.1",
+    "@starknet-react/chains": "^5.0.3",
+    "@starknet-react/core": "^5.0.3",
     "buffer": "6.0.3",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
@@ -25,6 +25,7 @@
   "devDependencies": {
     "@types/react": "^19.1.0",
     "@types/react-dom": "^19.1.0",
+    "@vitejs/plugin-basic-ssl": "^2.1.4",
     "@vitejs/plugin-react": "4.3.1",
     "typescript": "5.5.3",
     "vite": "5.4.2",

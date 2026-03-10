@@ -1,8 +1,8 @@
 {
   "world": {
     "class_hash": "0x613551abceb2b37073b1149bb862ea70cf029981ce1ca47e9dd7c7ab97cb65d",
-    "address": "0x13ee0a55ab046c0a49661e81c9e16631f4aefe3035b654e0062ebfd6fa45059",
-    "seed": "cipher",
+    "address": "0x5eefce30d1ed0892134dc6cc9c0e4f595518d4a4c1c54fa10c3ab5c86696786",
+    "seed": "cipher_v5",
     "name": "Cipher",
     "entrypoints": [
       "uuid",
@@ -33,7 +33,7 @@
   },
   "contracts": [
     {
-      "address": "0x25e6f712b6a15c86088fd3084cab805341b79e1589356fefbd33e556701a2e1",
+      "address": "0x26c2a4d969b8bebaa6abf59f85e16c78251beb2e6e5b999e45cd6fe22e31d22",
       "class_hash": "0x67e813e6447ea33167574ae492e090b5325ec739c13ef1c3c6ad9dadb7a9b20",
       "init_calldata": [],
       "tag": "cipher-actions",

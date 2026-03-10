@@ -26,4 +26,7 @@ export const cartridgeConnector = new ControllerConnector({
   defaultChainId: "0x534e5f5345504f4c4941",
   colorMode: "dark",
   propagateSessionErrors: true,
+  paymaster: {
+    caller: "0x414e595f43414c4c4552"
+  },
 } as never);

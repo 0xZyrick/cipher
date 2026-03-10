@@ -1,14 +1,14 @@
 [world]
 name = "Cipher"
-seed = "cipher"
+seed = "cipher_v5"
 
 [namespace]
 default = "cipher"
 
 [env]
-rpc_url = "https://api.cartridge.gg/x/cipher/katana"
-account_address = "0x127fd5f1fe78a71f8bcd1fec63e3fe2f0486b6ecd5c86a0466c3a21fa5cfcec"
-private_key = "0xc5b2fcab997346f3ea1c00b002ecf6f382c5f9c9659a3894eb783c5320f912"
+rpc_url = "https://api.cartridge.gg/x/starknet/sepolia"
+account_address = "0x05683819EFB8866D7A455b5C056003a78AF92B402dc38a12ccd5359cF765BaCd"
+private_key = "0x031808887bae4fa4afecdcac8c632fe2c31f5a22937b20705e28364eec839d1f"
 
 [writers]
 "cipher" = ["cipher-actions"]

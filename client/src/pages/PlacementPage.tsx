@@ -4,9 +4,12 @@ import { useState } from "react";
 import { useGameState } from "../hooks/useGameState";
 import { useActions } from "../hooks/useActions";
 import { PIECES, P2_PIECES, STATUS_ACTIVE, STATUS_LOBBY } from "../config";
+import type { AccountInterface } from "starknet";
 
 interface Props {
   gameId: string;
+  playerAddress: string;
+  account?: AccountInterface | null;
   onBattle: () => void;
   onLeave: () => void;
 }
@@ -108,10 +111,11 @@ function LakeBlob({ blobId }: { blobId: string }) {
   );
 }
 
-export function PlacementPage({ gameId, onBattle, onLeave }: Props) {
-  const ACTIVE_PLAYER = getActivePlayer();
+export function PlacementPage({ gameId, playerAddress, account, onBattle, onLeave }: Props) {
+  const ACTIVE_PLAYER = playerAddress || getActivePlayer();
+  const normalize = (addr: string) => "0x" + BigInt(addr).toString(16).padStart(64, '0');
   const { game, pieces, refetch } = useGameState(gameId, 1500);
-  const actions = useActions();
+  const actions = useActions(account);
 
   const [selectedRackIdx, setSelectedRackIdx] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
@@ -130,10 +134,9 @@ export function PlacementPage({ gameId, onBattle, onLeave }: Props) {
     );
   }
 
-  if (game.status === STATUS_ACTIVE) { onBattle(); return null; }
-
-  const isP1 = ACTIVE_PLAYER.toLowerCase() === game.player1.toLowerCase();
-  const isP2 = ACTIVE_PLAYER.toLowerCase() === game.player2.toLowerCase();
+  // const normalize = (addr: string) => "0x" + BigInt(addr).toString(16).padStart(64, '0');
+  const isP1 = normalize(ACTIVE_PLAYER) === normalize(game.player1);
+  const isP2 = normalize(ACTIVE_PLAYER) === normalize(game.player2);
 
   if (game.status === STATUS_LOBBY || (!isP1 && !isP2)) {
     return (
@@ -154,7 +157,7 @@ export function PlacementPage({ gameId, onBattle, onLeave }: Props) {
   const myMaxRow = isP1 ? 3 : 9;
 
   const placedPieceIds = new Set(
-    pieces.filter(p => p.is_placed && p.owner.toLowerCase() === ACTIVE_PLAYER.toLowerCase())
+    pieces.filter(p => p.is_placed && normalize(p.owner) === normalize(ACTIVE_PLAYER))
       .map(p => p.piece_id)
   );
 
@@ -341,7 +344,7 @@ export function PlacementPage({ gameId, onBattle, onLeave }: Props) {
 
         <div className="board-container">
           <div className="board-frame">
-            <div className="board" style={{ position: 'relative' }}>
+            <div className="board" style={{ position: 'relative', transform: isP1 ? 'none' : 'rotate(180deg)' }}>
               {Array.from({ length: BOARD_SIZE }, (_, row) =>
                 Array.from({ length: BOARD_SIZE }, (_, col) => {
                   const isMyZone = row >= myMinRow && row <= myMaxRow;
@@ -355,15 +358,17 @@ export function PlacementPage({ gameId, onBattle, onLeave }: Props) {
                   else if (!isP1 && row >= 6) cellClass += " zone-p2";
                   if (isValidPlace) cellClass += " valid-place";
 
-                  const isOwn = occupant?.owner.toLowerCase() === ACTIVE_PLAYER.toLowerCase();
+                  const isOwn = normalize(occupant?.owner ?? '0x0') === normalize(ACTIVE_PLAYER);
                   const myPieceData = occupant ? myPieces.find(p => p.id === occupant.piece_id) : null;
 
                   return (
                     <div
                       key={key}
                       className={cellClass}
+                      style={!isP1 
+                        ? { transform: 'rotate(180deg)', ...(isDimmed ? { opacity: 0.35, filter: "brightness(0.5)" } : {}) }
+                        : isDimmed ? { opacity: 0.35, filter: "brightness(0.5)" } : undefined}
                       onClick={() => isValidPlace && handleCellClick(col, row)}
-                      style={isDimmed ? { opacity: 0.35, filter: "brightness(0.5)" } : undefined}
                     >
                       {occupant && (
                         <div style={{

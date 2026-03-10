@@ -99,7 +99,7 @@ function parsePiece(node: Record<string, unknown>): PieceState {
   };
 }
 
-export function useGameState(gameId: string | null, intervalMs = 2000) {
+export function useGameState(gameId: string | null, intervalMs = 4000) {
   const [game, setGame] = useState<GameState | null>(null);
   const [pieces, setPieces] = useState<PieceState[]>([]);
   const [combat, setCombat] = useState<CombatState | null>(null);

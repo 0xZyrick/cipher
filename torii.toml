@@ -1,2 +1,2 @@
-world_address = "0x013ee0a55ab046c0a49661e81c9e16631f4aefe3035b654e0062ebfd6fa45059"
-rpc = "https://api.cartridge.gg/x/cipher/katana"
+world_address = "0x05eefce30d1ed0892134dc6cc9c0e4f595518d4a4c1c54fa10c3ab5c86696786"
+rpc = "https://api.cartridge.gg/x/starknet/sepolia"

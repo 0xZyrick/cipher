@@ -1193,7 +1193,7 @@ body {
 .placement-board-area .board-container {
   --cell: min(
     calc((100vh - 80px) / 10),
-    calc((100vw - 268px - 30px) / 10)
+    calc((100vw - clamp(175px, 22vw, 260px) - 30px) / 10)
   );
 }
 

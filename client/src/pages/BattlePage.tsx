@@ -1,3 +1,4 @@
+import type { AccountInterface } from "starknet";
 import { getActivePlayer } from "../player";
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useGameState, PieceState } from "../hooks/useGameState";
@@ -5,7 +6,12 @@ import { useActions } from "../hooks/useActions";
 import { RANK_NAME, STATUS_FINISHED, STATUS_PLACING } from "../config";
 import { getRank, getSalt } from "../utils/commitment";
 
-interface Props { gameId: string; onLeave: () => void; }
+interface Props {
+  gameId: string;
+  playerAddress: string;
+  account?: AccountInterface | null;
+  onLeave: () => void;
+}
 
 const BOARD_SIZE = 10;
 const TIMER_SECS = 6 * 60; // 6 minutes
@@ -175,11 +181,10 @@ function getConsequence(attackerRank: number, defenderRank: number): { kind: Con
   return { kind: "normal", text: "💀 DEFEATED" };
 }
 
-const ACTIVE_PLAYER = getActivePlayer();
-
-export function BattlePage({ gameId, onLeave }: Props) {
+export function BattlePage({ gameId, playerAddress, account, onLeave }: Props) {
+  const ACTIVE_PLAYER = playerAddress || getActivePlayer();
   const { game, pieces, combat, refetch } = useGameState(gameId, 1500);
-  const actions = useActions();
+  const actions = useActions(account);
 
   const [selectedPieceId, setSelectedPieceId] = useState<number | null>(null);
   const [validCells, setValidCells] = useState<Record<string, CellMode>>({});
@@ -206,10 +211,17 @@ export function BattlePage({ gameId, onLeave }: Props) {
   const handleResolveCombat = useCallback(async () => {
     if (!combat) return;
     setLoading(true); setError(null);
-    const defRank = getRank(gameId, combat.defender_piece_id);
-    const defSalt = getSalt(gameId, combat.defender_piece_id);
-    const conseq = getConsequence(combat.attacker_rank, defRank);
     const defPiece = pieces.find(p => p.piece_id === combat.defender_piece_id);
+    let defRank = getRank(gameId, combat.defender_piece_id);
+    const defSalt = getSalt(gameId, combat.defender_piece_id);
+
+    // If rank is 0 but attacker_rank suggests bomb (defender wins), it's likely a bomb
+    // Check the piece's revealed_rank from Torii as fallback
+    const defPieceData = pieces.find(p => p.piece_id === combat.defender_piece_id);
+    if (defRank === 0 && defPieceData?.revealed_rank === 11) defRank = 11;
+    if (defRank === 0 && defPieceData?.is_revealed) defRank = defPieceData.revealed_rank;
+
+    const conseq = getConsequence(combat.attacker_rank, defRank);
     const floatText = conseq.kind === 'bomb' ? '💥 BOMB!'
       : conseq.kind === 'draw' ? '⚖ DRAW!'
       : conseq.kind === 'spy_marshal' ? '☠ SILENCED!'
@@ -243,7 +255,7 @@ export function BattlePage({ gameId, onLeave }: Props) {
   useEffect(() => {
     if (!combat?.is_active) { prevCombatKeyRef.current = ''; return; }
     const defPiece = pieces.find(p => p.piece_id === combat.defender_piece_id);
-    const isWeDefender = defPiece?.owner.toLowerCase() === (ACTIVE_PLAYER?.toLowerCase() ?? '');
+    const isWeDefender = normalize(defPiece?.owner ?? '0x0') === normalize(ACTIVE_PLAYER ?? '0x0');
     if (!isWeDefender) return;
     const cKey = `${combat.attacker_piece_id}-${combat.defender_piece_id}`;
     if (prevCombatKeyRef.current === cKey) return;
@@ -275,8 +287,8 @@ export function BattlePage({ gameId, onLeave }: Props) {
       return;
     }
 
-    const myAddress = ACTIVE_PLAYER?.toLowerCase() ?? "";
-    const isMyTurn = game.current_turn.toLowerCase() === myAddress;
+    const myAddress = normalize(ACTIVE_PLAYER ?? '0x0');
+    const isMyTurn = normalize(game.current_turn) === myAddress;
 
     // Reset timer when turn changes
     if (game.current_turn !== prevTurn.current) {
@@ -330,10 +342,11 @@ export function BattlePage({ gameId, onLeave }: Props) {
     );
   }
 
-  const isP1 = ACTIVE_PLAYER.toLowerCase() === game.player1.toLowerCase();
-  const myAddress = ACTIVE_PLAYER.toLowerCase();
-  const isMyTurn = game.current_turn.toLowerCase() === myAddress;
-  const isWinner = game.status === STATUS_FINISHED && game.winner.toLowerCase() === myAddress;
+  const normalize = (addr: string) => "0x" + BigInt(addr).toString(16).padStart(64, '0');
+  const isP1 = normalize(ACTIVE_PLAYER) === normalize(game.player1);
+  const myAddress = normalize(ACTIVE_PLAYER);
+  const isMyTurn = normalize(game.current_turn) === myAddress;
+  const isWinner = game.status === STATUS_FINISHED && normalize(game.winner) === myAddress;
 
   const boardMap: Record<string, PieceState> = {};
   for (const p of pieces) {
@@ -354,7 +367,7 @@ export function BattlePage({ gameId, onLeave }: Props) {
         while (nx >= 0 && nx < BOARD_SIZE && ny >= 0 && ny < BOARD_SIZE) {
           if (LAKE_CELLS.has(`${nx}_${ny}`)) break;
           const occ = getPieceByCell(nx, ny);
-          if (occ) { if (occ.owner.toLowerCase() !== myAddress) cells[`${nx}_${ny}`] = "attack"; break; }
+          if (occ) { if (normalize(occ.owner) !== myAddress) cells[`${nx}_${ny}`] = "attack"; break; }
           cells[`${nx}_${ny}`] = "move";
           nx += dx; ny += dy;
         }
@@ -366,7 +379,7 @@ export function BattlePage({ gameId, onLeave }: Props) {
         if (LAKE_CELLS.has(`${nx}_${ny}`)) continue;
         const occ = getPieceByCell(nx, ny);
         if (!occ) cells[`${nx}_${ny}`] = "move";
-        else if (occ.owner.toLowerCase() !== myAddress) cells[`${nx}_${ny}`] = "attack";
+        else if (normalize(occ.owner) !== myAddress) cells[`${nx}_${ny}`] = "attack";
       }
     }
     return cells;
@@ -374,7 +387,7 @@ export function BattlePage({ gameId, onLeave }: Props) {
 
   function handlePieceClick(piece: PieceState) {
     if (!isMyTurn || loading || combat?.is_active) return;
-    if (piece.owner.toLowerCase() !== myAddress) return;
+    if (normalize(piece.owner) !== myAddress) return;
     if (selectedPieceId === piece.piece_id) { setSelectedPieceId(null); setValidCells({}); return; }
     setSelectedPieceId(piece.piece_id);
     setValidCells(computeValidMoves(piece));
@@ -413,8 +426,8 @@ export function BattlePage({ gameId, onLeave }: Props) {
     finally { setLoading(false); }
   }
 
-  const myPieces = pieces.filter(p => p.owner.toLowerCase() === myAddress && p.is_alive);
-  const oppPieces = pieces.filter(p => p.owner.toLowerCase() !== myAddress && p.is_alive);
+  const myPieces = pieces.filter(p => normalize(p.owner) === myAddress && p.is_alive);
+  const oppPieces = pieces.filter(p => normalize(p.owner) !== myAddress && p.is_alive);
 
   const p1Addr = game.player1;
   const p2Addr = game.player2;
@@ -498,7 +511,7 @@ export function BattlePage({ gameId, onLeave }: Props) {
         {/* ── Board ── */}
         <div className="board-container">
           <div className="board-frame">
-            <div className="board" style={{ position: 'relative' }}>
+            <div className="board" style={{ position: 'relative', transform: isP1 ? 'none' : 'rotate(180deg)' }}>
               {Array.from({ length: BOARD_SIZE }, (_, row) =>
                 Array.from({ length: BOARD_SIZE }, (_, col) => {
                   const key = `${col}_${row}`;
@@ -522,16 +535,17 @@ export function BattlePage({ gameId, onLeave }: Props) {
                     <div
                       key={key}
                       className={cls}
+                      style={!isP1 ? { transform: 'rotate(180deg)' } : undefined}
                       onClick={() => {
                         if (isLake) return;
-                        if (piece?.owner.toLowerCase() === myAddress) handlePieceClick(piece!);
+                        if (piece && normalize(piece.owner) === myAddress) handlePieceClick(piece);
                         else if (cellMode) handleCellClick(col, row);
                       }}
                     >
                       {piece && (
                         <PieceToken
                           piece={piece}
-                          isOwn={piece.owner.toLowerCase() === myAddress}
+                          isOwn={normalize(piece.owner) === myAddress}
                           gameId={gameId}
                           isSelected={!!isSelected}
                           isCombat={combat?.is_active && (combat.attacker_piece_id === piece.piece_id || combat.defender_piece_id === piece.piece_id)}
