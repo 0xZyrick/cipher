@@ -27,17 +27,19 @@ export function useActions(account?: AccountInterface | null) {
       const receipt = await provider.getTransactionReceipt(result.transaction_hash);
       const events = (receipt as never as { events: { data: string[] }[] }).events;
       
+      let gameId: bigint | null = null;
       for (const event of events) {
         for (const data of event.data) {
           try {
             const n = BigInt(data);
             if (n > 0n && n < 1000000n) {
-              return "0x" + n.toString(16);
+              if (gameId === null || n > gameId) gameId = n;
             }
           } catch { continue; }
         }
       }
-      return "0x1";
+      if (gameId !== null) return "0x" + gameId.toString(16);
+      return null;
     },
     async joinGame(gameId: string) {
       await executeCall("join_game", [gameId], account);
