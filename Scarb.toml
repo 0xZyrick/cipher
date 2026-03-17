@@ -12,6 +12,9 @@ migrate = "sozo build && sozo migrate"
 [dependencies]
 dojo = "1.8.0"
 starknet = "2.13.1"
+game_components_embeddable_game_standard = { git = "https://github.com/Provable-Games/game-components", tag = "v1.1.0-starknet-2.13.1" }
+game_components_interfaces = { git = "https://github.com/Provable-Games/game-components", tag = "v1.1.0-starknet-2.13.1" }
+openzeppelin_introspection = { git = "https://github.com/OpenZeppelin/cairo-contracts.git", tag = "v3.0.0-alpha.3" }
 
 [[target.starknet-contract]]
 build-external-contracts = ["dojo::world::world_contract::world"]

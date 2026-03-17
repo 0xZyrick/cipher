@@ -11,4 +11,19 @@ account_address = "0x05683819EFB8866D7A455b5C056003a78AF92B402dc38a12ccd5359cF76
 private_key = "0x031808887bae4fa4afecdcac8c632fe2c31f5a22937b20705e28364eec839d1f"
 
 [writers]
-"cipher" = ["cipher-actions"]
+"cipher" = ["cipher-actions", "cipher-game_setup"]
+
+[migration]
+order_inits = [
+    "cipher-actions",
+    "cipher-game_setup",
+]
+
+[init_call_args]
+"cipher-actions" = [
+    "0x0142712722e62a38f9c40fcc904610e1a14c70125876ecaaf25d803556734467", # denshokan_address
+]
+"cipher-game_setup" = [
+    "0x05683819EFB8866D7A455b5C056003a78AF92B402dc38a12ccd5359cF765BaCd", # creator_address
+    "0x0142712722e62a38f9c40fcc904610e1a14c70125876ecaaf25d803556734467", # denshokan_address
+]

@@ -1,10 +1,12 @@
 import { saveRank } from "../utils/commitment";
 import { getActivePlayer } from "../player";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useGameState } from "../hooks/useGameState";
 import { useActions } from "../hooks/useActions";
-import { PIECES, P2_PIECES, STATUS_ACTIVE, STATUS_LOBBY } from "../config";
+import { PIECES, P2_PIECES, STATUS_LOBBY } from "../config";
 import type { AccountInterface } from "starknet";
+import { audioManager } from "../utils/audioManager";
+import { voiceOver } from "../utils/voiceOver";
 
 interface Props {
   gameId: string;
@@ -15,105 +17,77 @@ interface Props {
 }
 
 const BOARD_SIZE = 10;
+const LAKE_CELLS = new Set(["2_4","3_4","2_5","3_5","6_4","7_4","6_5","7_5"]);
 
-// ── Rank icon SVGs (small, for slot corners) ─────────────
-function RankIconSVG({ rank, color = "currentColor" }: { rank: number; color?: string }) {
-  const s = color;
-  switch (rank) {
-    case 0: // Flag
-      return <svg viewBox="0 0 16 16" fill={s}><line x1="3" y1="1" x2="3" y2="15" stroke={s} strokeWidth="1.4" strokeLinecap="round"/><path d="M3 1 L13 4.5 L3 8 Z"/></svg>;
-    case 1: // Spy — eye
-      return <svg viewBox="0 0 16 16" fill="none" stroke={s} strokeWidth="1.3" strokeLinecap="round"><path d="M1 8s3-5 7-5 7 5 7 5-3 5-7 5-7-5-7-5z"/><circle cx="8" cy="8" r="2" fill={s}/></svg>;
-    case 2: // Scout — zap
-      return <svg viewBox="0 0 16 16" fill={s}><path d="M9 1L2 9h6l-1 6 7-8H8z"/></svg>;
-    case 3: // Miner — pickaxe
-      return <svg viewBox="0 0 16 16" fill="none" stroke={s} strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"><path d="M10 2l4 4-7 7-2-2 2-1.5L4 6l1.5-2z" fill={s} fillOpacity="0.8"/><line x1="3" y1="13" x2="7" y2="9"/></svg>;
-    case 4: // Sergeant — shield
-      return <svg viewBox="0 0 16 16" fill={s}><path d="M8 1L2 4v4c0 3.5 2.5 6.7 6 7.5C11.5 14.7 14 11.5 14 8V4z" fillOpacity="0.85"/></svg>;
-    case 5: // Lieutenant — 1 star
-      return <svg viewBox="0 0 16 16" fill={s}><polygon points="8,2 9.5,6.5 14,6.5 10.5,9.5 11.8,14 8,11 4.2,14 5.5,9.5 2,6.5 6.5,6.5"/></svg>;
-    case 6: // Captain — 2 stars
-      return <svg viewBox="0 0 16 16" fill={s}><polygon points="5,2 6,5 9,5 6.8,6.8 7.5,10 5,8.2 2.5,10 3.2,6.8 1,5 4,5"/><polygon points="11,2 12,5 15,5 12.8,6.8 13.5,10 11,8.2 8.5,10 9.2,6.8 7,5 10,5"/></svg>;
-    case 7: // Major — 3 stars (crown-ish)
-      return <svg viewBox="0 0 16 16" fill={s}><polygon points="3,3 4.2,6.5 7,6.5 4.8,8.2 5.5,11.5 3,9.5 0.5,11.5 1.2,8.2 -1,6.5 1.8,6.5" transform="translate(2,0) scale(0.7)"/><polygon points="8,1 9.5,5 13,5 10.5,7.2 11.5,11 8,8.8 4.5,11 5.5,7.2 3,5 6.5,5"/><polygon points="3,3 4.2,6.5 7,6.5 4.8,8.2 5.5,11.5 3,9.5 0.5,11.5 1.2,8.2 -1,6.5 1.8,6.5" transform="translate(7,0) scale(0.7)"/></svg>;
-    case 8: // Colonel — crown
-      return <svg viewBox="0 0 16 16" fill={s}><path d="M1 12h14v2H1z" opacity="0.6"/><path d="M1 5l3 4 4-5 4 5 3-4v7H1z"/></svg>;
-    case 9: // General — swords
-      return <svg viewBox="0 0 16 16" fill="none" stroke={s} strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"><line x1="2" y1="2" x2="12" y2="12"/><polyline points="2,2 2,5 5,2"/><line x1="14" y1="14" x2="12" y2="12"/><line x1="14" y1="2" x2="4" y2="12"/><polyline points="14,2 11,2 14,5"/><line x1="2" y1="14" x2="4" y2="12"/></svg>;
-    case 10: // Marshal — double crown
-      return <svg viewBox="0 0 16 16" fill={s}><path d="M1 13h14v1.5H1z" opacity="0.55"/><path d="M1 4.5l3 3.5 4-5 4 5 3-3.5v7H1z"/></svg>;
-    case 11: // Bomb
-      return <svg viewBox="0 0 16 16" fill={s}><circle cx="8" cy="10" r="5"/><line x1="8" y1="5" x2="8" y2="2" stroke={s} strokeWidth="1.4" strokeLinecap="round" fill="none"/><path d="M8 2 L11 3.5" stroke={s} strokeWidth="1.4" strokeLinecap="round" fill="none"/><circle cx="8" cy="10" r="1.8" fill="rgba(0,0,0,0.3)"/></svg>;
-    default:
-      return <svg viewBox="0 0 16 16" fill={s}><text x="8" y="12" textAnchor="middle" fontSize="10" fontFamily="Cinzel,serif" fontWeight="700">?</text></svg>;
-  }
+function DiamondIndicator() {
+  return <span className="diamond-indicator"><img src="/assets/icons/diamond-indicator.webp" alt=""/></span>;
 }
 
-// ── Chunky Soldier Silhouette (shared with board) ─────────
-function SoldierSilhouetteSVG({ pieceId, isOwn, dimmed = false }: {
-  pieceId: number; isOwn: boolean; dimmed?: boolean;
-}) {
-  const gradId = `sg-${pieceId}`;
-  const vlight = isOwn ? '#4a7acc' : '#cc4a4a';
-  const light  = isOwn ? '#1e4a9a' : '#9a1e1e';
-  const main   = isOwn ? '#0d2d6a' : '#6a0d0d';
-  const dark   = isOwn ? '#050e22' : '#220505';
-  const op = dimmed ? 0.45 : 1;
-
+function HourglassIcon() {
   return (
-    <svg viewBox="0 0 44 58" xmlns="http://www.w3.org/2000/svg"
-      style={{ width: '100%', height: '100%', display: 'block', overflow: 'visible' }}>
-      <defs>
-        <linearGradient id={gradId} x1="0.12" y1="0" x2="0.9" y2="1">
-          <stop offset="0%"   stopColor={vlight} stopOpacity={op}/>
-          <stop offset="38%"  stopColor={light}  stopOpacity={op}/>
-          <stop offset="72%"  stopColor={main}   stopOpacity={op}/>
-          <stop offset="100%" stopColor={dark}   stopOpacity={op}/>
-        </linearGradient>
-      </defs>
-      <ellipse cx="22" cy="57" rx="14" ry="2.2" fill="rgba(0,0,0,0.38)" opacity={op}/>
-      <rect x="10" y="37" width="10" height="18" rx="4.5" fill={`url(#${gradId})`}/>
-      <rect x="24" y="37" width="10" height="18" rx="4.5" fill={`url(#${gradId})`}/>
-      <rect x="10" y="37" width="24" height="7" rx="2.5" fill={main} opacity={dimmed ? 0.5 : 0.95}/>
-      <rect x="6" y="19" width="32" height="20" rx="6.5" fill={`url(#${gradId})`}/>
-      <rect x="0.5" y="20" width="8" height="16" rx="4" fill={`url(#${gradId})`}/>
-      <rect x="35.5" y="20" width="8" height="16" rx="4" fill={`url(#${gradId})`}/>
-      <rect x="16" y="15.5" width="12" height="6.5" rx="3" fill={main} opacity={dimmed ? 0.5 : 0.95}/>
-      <ellipse cx="22" cy="11" rx="12.5" ry="11" fill={`url(#${gradId})`}/>
-      <path d="M9.5,11 Q9.5,-0.5 22,-1 Q34.5,-0.5 34.5,11" fill={vlight} opacity={dimmed ? 0.2 : 0.52}/>
-      <rect x="7.5" y="17.5" width="29" height="3.5" rx="1.75" fill={light} opacity={dimmed ? 0.18 : 0.44}/>
-      <ellipse cx="17" cy="9" rx="4" ry="5.5" fill="white" opacity={dimmed ? 0.02 : 0.08}/>
-      <rect x="10" y="22" width="12" height="11" rx="4.5" fill="white" opacity={dimmed ? 0.01 : 0.055}/>
+    <svg className="hourglass" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M5 2h14M5 22h14M6 2v4l5 4-5 4v4M18 2v4l-5 4 5 4v4"/>
     </svg>
   );
 }
 
-// ── Irregular lake blob ────────────────────────────────────
-function LakeBlob({ blobId }: { blobId: string }) {
-  const gradId = `lakeG-${blobId}`;
+// ── Medallion Piece ───────────────────────────────────────
+function MedallionPiece({ rank, isOwn, dimmed = false, size = "100%" }: {
+  rank: number; isOwn: boolean; dimmed?: boolean; size?: string;
+}) {
+  const getAssetPath = () => {
+    if (!isOwn) return "/assets/pieces/piece-hidden.webp";
+    if (rank === 0) return "/assets/pieces/flag.webp";
+    if (rank === 11) return "/assets/pieces/bomb.webp";
+    return `/assets/pieces/rank-${rank}.png`;
+  };
+  const rankLabel = rank === 0 ? "F" : rank === 11 ? "B" : String(rank);
   return (
-    <svg style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%',
-      pointerEvents: 'none', zIndex: 5, overflow: 'visible' }}
-      viewBox="0 0 200 200" preserveAspectRatio="none">
-      <defs>
-        <radialGradient id={gradId} cx="40%" cy="33%" r="62%">
-          <stop offset="0%"   stopColor="rgba(195,238,255,0.97)"/>
-          <stop offset="32%"  stopColor="rgba(80,185,238,0.92)"/>
-          <stop offset="68%"  stopColor="rgba(32,120,195,0.87)"/>
-          <stop offset="100%" stopColor="rgba(15,80,150,0.82)"/>
-        </radialGradient>
-      </defs>
-      <path d="M24,102 C10,72 16,32 48,16 C70,5 108,0 134,18 C158,35 188,44 194,78 C200,110 190,152 162,166 C138,178 98,192 66,180 C36,168 10,148 6,118 C4,112 14,116 24,102 Z"
-        fill={`url(#${gradId})`}/>
-      <path d="M40,28 C56,16 84,12 110,24 C92,40 64,38 40,28 Z" fill="rgba(255,255,255,0.30)"/>
-      <ellipse cx="145" cy="150" rx="24" ry="10" fill="rgba(255,255,255,0.11)" transform="rotate(-28,145,150)"/>
-    </svg>
+    <div style={{ width: size, height: size, position: "relative", opacity: dimmed ? 0.28 : 1, borderRadius: "50%" }}>
+      <img
+        src={getAssetPath()}
+        alt={rankLabel}
+        style={{ width: "100%", height: "100%", borderRadius: "50%", display: "block", objectFit: "cover", filter: dimmed ? "grayscale(0.8)" : "none" }}
+        onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+      />
+      {isOwn && (
+        <div style={{
+          position: "absolute", bottom: 0, right: 0,
+          width: "32%", height: "32%", borderRadius: "50%",
+          background: "rgba(0,0,0,0.75)", border: "1px solid rgba(201,168,76,0.6)",
+          display: "flex", alignItems: "center", justifyContent: "center",
+          fontFamily: "var(--font-head)", fontSize: "calc(var(--cell) * 0.15)",
+          fontWeight: 700, color: "var(--gold-light)", lineHeight: 1,
+          pointerEvents: "none", zIndex: 3,
+        }}>
+          {rankLabel}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Animated Water Lake — pure CSS, no image file needed ──
+function ParchmentLake({ blobId }: { blobId: string }) {
+  return (
+    <div style={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%", pointerEvents: "none", zIndex: 5, borderRadius: "10px", overflow: "hidden" }}>
+      <div style={{ position: "absolute", inset: 0, background: "radial-gradient(ellipse at 42% 38%, rgba(60,115,175,0.78) 0%, rgba(32,78,138,0.70) 50%, rgba(14,50,108,0.62) 100%)" }}/>
+      <div style={{ position: "absolute", inset: 0, background: "repeating-linear-gradient(105deg, transparent 0px, transparent 18px, rgba(120,180,255,0.10) 18px, rgba(120,180,255,0.10) 20px)", animation: `wave-drift-a-${blobId} 5s linear infinite` }}/>
+      <div style={{ position: "absolute", inset: 0, background: "repeating-linear-gradient(72deg, transparent 0px, transparent 12px, rgba(160,210,255,0.07) 12px, rgba(160,210,255,0.07) 14px)", animation: `wave-drift-b-${blobId} 3.5s linear infinite reverse` }}/>
+      <div style={{ position: "absolute", inset: 0, background: "radial-gradient(ellipse at 30% 25%, rgba(180,225,255,0.22) 0%, transparent 55%)", animation: `shimmer-pulse-${blobId} 3s ease-in-out infinite alternate` }}/>
+      <div style={{ position: "absolute", inset: 0, background: "radial-gradient(ellipse at center, transparent 50%, rgba(140,100,40,0.38) 100%)", borderRadius: "10px" }}/>
+      <style>{`
+        @keyframes wave-drift-a-${blobId} { from{background-position:0 0} to{background-position:40px 20px} }
+        @keyframes wave-drift-b-${blobId} { from{background-position:0 0} to{background-position:-28px 14px} }
+        @keyframes shimmer-pulse-${blobId} { from{opacity:0.6} to{opacity:1} }
+      `}</style>
+    </div>
   );
 }
 
 export function PlacementPage({ gameId, playerAddress, account, onBattle, onLeave }: Props) {
   const ACTIVE_PLAYER = playerAddress || getActivePlayer();
-  const normalize = (addr: string) => "0x" + BigInt(addr).toString(16).padStart(64, '0');
+  const normalize = (addr: string) => "0x" + BigInt(addr).toString(16).padStart(64, "0");
   const { game, pieces, refetch } = useGameState(gameId, 1500);
   const actions = useActions(account);
 
@@ -122,19 +96,25 @@ export function PlacementPage({ gameId, playerAddress, account, onBattle, onLeav
   const [error, setError] = useState<string | null>(null);
   const [readying, setReadying] = useState(false);
 
+  // Voice cue only — music continues during placement
+  useEffect(() => {
+    voiceOver.play("deployMen", { delay: 800 });
+  }, []);
+
   if (!game || !ACTIVE_PLAYER) {
     return (
       <div className="vp-layout">
         <div className="waiting-state">
-          <div className="spinner" />
+          <div className="dot-loader"><span/><span/><span/></div>
           <h3>Loading Game</h3>
-          <p>Game ID: <span style={{ color: "var(--gold-light)" }}>{gameId}</span></p>
+          <p style={{ fontFamily: "var(--font-body)", fontStyle: "italic" }}>
+            Game ID: <span style={{ color: "var(--gold-light)" }}>{gameId}</span>
+          </p>
         </div>
       </div>
     );
   }
 
-  // const normalize = (addr: string) => "0x" + BigInt(addr).toString(16).padStart(64, '0');
   const isP1 = normalize(ACTIVE_PLAYER) === normalize(game.player1);
   const isP2 = normalize(ACTIVE_PLAYER) === normalize(game.player2);
 
@@ -142,11 +122,22 @@ export function PlacementPage({ gameId, playerAddress, account, onBattle, onLeav
     return (
       <div className="vp-layout">
         <div className="waiting-state">
+          <div style={{
+            width: "min(420px, 70vw)", aspectRatio: "16 / 5",
+            backgroundImage: "url('/assets/ui/cipher-plaque.webp')",
+            backgroundSize: "contain", backgroundRepeat: "no-repeat",
+            backgroundPosition: "center", marginBottom: 8,
+            filter: "drop-shadow(0 4px 16px rgba(0,0,0,0.7))",
+          }} aria-hidden="true"/>
           <h3>Waiting for Opponent</h3>
-          <p>Share this Game ID:</p>
-          <div className="game-id-display">{gameId}</div>
-          <div className="spinner" />
-          <button className="btn btn-sm btn-danger" onClick={onLeave} style={{ marginTop: 16 }}>Leave</button>
+          <p style={{ fontFamily: "var(--font-body)", fontStyle: "italic" }}>Share this Game ID with your opponent</p>
+          <div className="game-id-display">
+            <span style={{ color: "var(--amber)", marginRight: 8 }}>▶</span>{gameId}
+          </div>
+          <HourglassIcon/>
+          <button className="btn btn-danger btn-sm" onClick={() => { audioManager.playSFX("click"); onLeave(); }} style={{ marginTop: 16 }}>
+            Leave
+          </button>
         </div>
       </div>
     );
@@ -157,14 +148,11 @@ export function PlacementPage({ gameId, playerAddress, account, onBattle, onLeav
   const myMaxRow = isP1 ? 3 : 9;
 
   const placedPieceIds = new Set(
-    pieces.filter(p => p.is_placed && normalize(p.owner) === normalize(ACTIVE_PLAYER))
-      .map(p => p.piece_id)
+    pieces.filter(p => p.is_placed && normalize(p.owner) === normalize(ACTIVE_PLAYER)).map(p => p.piece_id)
   );
-
   const boardMap: Record<string, { piece_id: number; owner: string; rank: number }> = {};
   for (const p of pieces) {
-    if (p.is_placed && p.is_alive)
-      boardMap[`${p.x}_${p.y}`] = { piece_id: p.piece_id, owner: p.owner, rank: p.revealed_rank };
+    if (p.is_placed && p.is_alive) boardMap[`${p.x}_${p.y}`] = { piece_id: p.piece_id, owner: p.owner, rank: p.revealed_rank };
   }
 
   const selectedPiece = selectedRackIdx !== null ? myPieces[selectedRackIdx] : null;
@@ -172,22 +160,29 @@ export function PlacementPage({ gameId, playerAddress, account, onBattle, onLeav
   const myPlaced = isP1 ? game.p1_pieces_placed : game.p2_pieces_placed;
   const oppPlaced = isP1 ? game.p2_pieces_placed : game.p1_pieces_placed;
 
+  const boardRotation = isP1 ? "rotate(180deg)" : "none";
+  const cellCounterRotation = isP1 ? "rotate(180deg)" : undefined;
+
   async function handleCellClick(x: number, y: number) {
     if (!selectedPiece || loading || boardMap[`${x}_${y}`]) return;
     setLoading(true); setError(null);
     try {
       saveRank(gameId, selectedPiece.id, selectedPiece.rank);
       await actions.placePiece(gameId, selectedPiece.id, x, y, selectedPiece.rank);
+      audioManager.playSFX("deploy");
+      const newCount = placedPieceIds.size + 1;
+      if (newCount === 10) voiceOver.play("allDeployed", { delay: 300 });
+      else if (newCount % 3 === 0) voiceOver.play("pieceDeployed");
       setSelectedRackIdx(null);
       await refetch();
-    } catch (e: unknown) { setError((e as Error).message); }
+    } catch (e: unknown) { audioManager.playSFX("error"); setError((e as Error).message); }
     finally { setLoading(false); }
   }
 
   async function handleReady() {
     setReadying(true); setError(null);
-    try { await actions.ready(gameId); await refetch(); }
-    catch (e: unknown) { setError((e as Error).message); }
+    try { audioManager.playSFX("click"); await actions.ready(gameId); await refetch(); }
+    catch (e: unknown) { audioManager.playSFX("error"); setError((e as Error).message); }
     finally { setReadying(false); }
   }
 
@@ -201,28 +196,32 @@ export function PlacementPage({ gameId, playerAddress, account, onBattle, onLeav
       }
     }
     const shuffled = [...emptyZoneCells].sort(() => Math.random() - 0.5);
-    setLoading(true); setError(null);
+    setLoading(true); setError(null); audioManager.playSFX("click");
     try {
       for (let i = 0; i < unplaced.length && i < shuffled.length; i++) {
-        const piece = unplaced[i];
-        const { x, y } = shuffled[i];
+        const piece = unplaced[i]; const { x, y } = shuffled[i];
         saveRank(gameId, piece.id, piece.rank);
         await actions.placePiece(gameId, piece.id, x, y, piece.rank);
+        audioManager.playSFX("deploy");
       }
+      voiceOver.play("allDeployed", { delay: 400 });
       await refetch();
-    } catch (e: unknown) { setError((e as Error).message); }
+    } catch (e: unknown) { audioManager.playSFX("error"); setError((e as Error).message); }
     finally { setLoading(false); }
   }
 
   return (
-    <div className="vp-layout vp-row">
+    <div className="vp-layout vp-row page-enter">
 
-      {/* ══ LEFT PANEL ══ */}
+      {/* ══ LEFT PANEL — Your Forces ══ */}
       <div className="placement-panel">
 
-        <div className="panel-section-title">YOUR FORCES</div>
+        {/* Section title */}
+        <div className="placement-panel-title">
+          <DiamondIndicator /> Your Forces
+        </div>
 
-        {/* 4-column inventory grid */}
+        {/* 3-column piece grid */}
         <div className="army-grid">
           {myPieces.map((piece, idx) => {
             const isPlaced = placedPieceIds.has(piece.id);
@@ -230,170 +229,118 @@ export function PlacementPage({ gameId, playerAddress, account, onBattle, onLeav
             return (
               <button
                 key={piece.id}
-                className={`army-slot${isSelected ? ' army-slot--selected' : ''}${isPlaced ? ' army-slot--placed' : ''}`}
-                onClick={() => !isPlaced && !loading && setSelectedRackIdx(isSelected ? null : idx)}
-                title={`${piece.name} · ${piece.rank === 0 ? 'Flag' : piece.rank === 11 ? 'Bomb' : 'Rank ' + piece.rank}`}
+                className={`army-slot${isSelected ? " army-slot--selected" : ""}${isPlaced ? " army-slot--placed" : ""}`}
+                onClick={() => { if (!isPlaced && !loading) { audioManager.playSFX("click"); setSelectedRackIdx(isSelected ? null : idx); } }}
+                title={`${piece.name} · ${piece.rank === 0 ? "Flag" : piece.rank === 11 ? "Bomb" : "Rank " + piece.rank}`}
                 disabled={loading}
               >
-                {/* Silhouette fills slot */}
-                <div style={{ width: '90%', height: '90%', position: 'relative',
-                  filter: isPlaced ? 'grayscale(0.9) opacity(0.3)' : isSelected
-                    ? 'drop-shadow(0 0 6px rgba(220,168,40,0.9))'
-                    : 'drop-shadow(1px 2px 2px rgba(0,0,0,0.6))',
-                }}>
-                  <SoldierSilhouetteSVG pieceId={piece.id} isOwn={true} dimmed={isPlaced} />
-                  {/* Rank number top-left */}
-                  {!isPlaced && (
-                    <div style={{
-                      position: 'absolute', top: 1, left: 2,
-                      fontFamily: 'var(--font-head)', fontWeight: 900,
-                      fontSize: piece.rank >= 10 ? 12 : 14,
-                      color: isSelected ? '#ffe8a0' : '#ddeeff',
-                      textShadow: '0 1px 5px rgba(0,0,0,0.95)',
-                      lineHeight: 1, letterSpacing: '-0.03em', zIndex: 3,
-                      pointerEvents: 'none',
-                    }}>
-                      {piece.rank === 0 ? 'F' : piece.rank === 11 ? 'B' : piece.rank}
-                    </div>
-                  )}
-                </div>
+                <MedallionPiece rank={piece.rank} isOwn={true} dimmed={isPlaced} size="88%"/>
                 {isPlaced && <div className="army-slot-placed-tick">✓</div>}
               </button>
             );
           })}
         </div>
 
-        {/* Auto-fill button */}
-        <button
-          className="btn btn-secondary"
-          onClick={handleAutoFill}
-          disabled={loading || allPlaced}
-          style={{ width: '100%', justifyContent: 'center', fontSize: 10, marginTop: 2 }}
-        >
-          {loading ? '⟳ Filling...' : '⚡ Auto-Fill Army'}
-        </button>
-
-        {/* Selected info */}
-        <div className="panel-info-box">
-          {selectedPiece ? (
-            <>
-              <span className="panel-info-label">PLACING</span>
-              <span className="panel-info-value gold">{selectedPiece.name.toUpperCase()}</span>
-              <span className="panel-info-label">
-                {selectedPiece.rank === 0 ? "FLAG · CANNOT MOVE" : selectedPiece.rank === 11 ? "BOMB · CANNOT MOVE" : `RANK ${selectedPiece.rank}`}
-              </span>
-            </>
-          ) : (
-            <span className="panel-info-label">SELECT A UNIT TO PLACE</span>
-          )}
-          {loading && (
-            <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 6, justifyContent: "center" }}>
-              <div className="spinner" style={{ width: 13, height: 13, borderWidth: 2 }} />
-              <span className="panel-info-label" style={{ color: "var(--gold)", animation: "pulse 1s ease-in-out infinite" }}>
-                DEPLOYING...
-              </span>
-            </div>
-          )}
-        </div>
+        {/* Selected piece indicator */}
+        {selectedPiece && (
+          <div className="placement-selected-info">
+            <DiamondIndicator/> PLACING — {selectedPiece.name.toUpperCase()}
+          </div>
+        )}
+        {loading && (
+          <div className="placement-deploying-info">
+            <div className="dot-loader" style={{ transform: "scale(0.7)" }}><span/><span/><span/></div>
+            DEPLOYING...
+          </div>
+        )}
 
         <div style={{ flex: 1 }} />
 
-        {/* Progress */}
-        <div className="panel-info-box">
-          <div className="panel-progress-row">
-            <span className="panel-info-label" style={{ fontSize: 11 }}>YOU</span>
-            <span className="panel-info-label" style={{ color: "var(--gold)", fontSize: 12, fontFamily: "var(--font-head)" }}>{myPlaced}/10</span>
+        {/* Auto Fill button */}
+        <button
+          className="btn btn-secondary placement-auto-fill"
+          onClick={handleAutoFill}
+          disabled={loading || allPlaced}
+        >
+          <DiamondIndicator />
+          {loading ? "Filling..." : "Auto Fill"}
+        </button>
+
+        {/* Leave Game button */}
+        <button
+          className="btn btn-danger placement-leave-btn"
+          onClick={() => { audioManager.playSFX("click"); onLeave(); }}
+        >
+          Leave Game
+        </button>
+
+        {/* Progress — Your Forces */}
+        <div className="placement-progress-block">
+          <DiamondIndicator />
+          <span className="placement-progress-label">Your Forces</span>
+          <div className="placement-progress-bar">
+            <div className="placement-progress-fill" style={{ width: `${(myPlaced / 10) * 100}%` }} />
           </div>
-          <div className="progress-bar" style={{ marginBottom: 9, height: 5 }}>
-            <div className="progress-fill" style={{ width: `${(myPlaced / 10) * 100}%` }} />
-          </div>
-          <div className="panel-progress-row">
-            <span className="panel-info-label" style={{ fontSize: 11 }}>OPPONENT</span>
-            <span className="panel-info-label" style={{ fontSize: 12, fontFamily: "var(--font-head)" }}>{oppPlaced}/10</span>
-          </div>
-          <div className="progress-bar" style={{ height: 5 }}>
-            <div style={{ height: "100%", background: "rgba(180,60,60,0.5)", width: `${(oppPlaced / 10) * 100}%`, transition: "width 0.4s" }} />
+          <div className="placement-progress-row">
+            <span className="placement-progress-sub">Placed:</span>
+            <span className="placement-progress-count">{myPlaced}/10</span>
           </div>
         </div>
 
-        {error && <div className="error-msg" style={{ fontSize: 10, marginTop: 4 }}>{error}</div>}
-
+        {/* Ready for Battle — in left panel */}
         <button
           className="btn btn-primary"
-          onClick={handleReady}
+          onClick={allPlaced && !readying ? handleReady : undefined}
           disabled={!allPlaced || readying || loading}
-          style={{ width: "100%", justifyContent: "center", fontSize: 11, marginTop: 6 }}
+          style={{ width: "100%", justifyContent: "center", fontSize: 11, display: "flex", alignItems: "center", gap: 8 }}
         >
-          {readying ? "Signaling..." : allPlaced ? "⚔ Ready for Battle" : `Place ${10 - myPlaced} More`}
+          <DiamondIndicator />
+          {readying ? "Signalling..." : allPlaced ? "Ready for Battle" : `Place ${10 - myPlaced} More`}
         </button>
-        <button
-          className="btn btn-sm btn-danger"
-          onClick={onLeave}
-          style={{ width: "100%", justifyContent: "center", marginTop: 5 }}
-        >
-          Leave
-        </button>
+
+        {error && <div className="error-msg" style={{ fontSize: 10, marginTop: 4 }}>{error}</div>}
       </div>
 
       {/* ══ BOARD AREA ══ */}
       <div className="placement-board-area">
-        <div className="placement-header">
-          <h2>Deploy Your Forces</h2>
-          <p>{isP1 ? "Your zone · rows 0–3 (green, top)" : "Your zone · rows 6–9 (green, bottom)"}</p>
-        </div>
-
         <div className="board-container">
           <div className="board-frame">
-            <div className="board" style={{ position: 'relative', transform: isP1 ? 'none' : 'rotate(180deg)' }}>
+            <div className="board" style={{ position: "relative", transform: boardRotation }}>
               {Array.from({ length: BOARD_SIZE }, (_, row) =>
                 Array.from({ length: BOARD_SIZE }, (_, col) => {
                   const isMyZone = row >= myMinRow && row <= myMaxRow;
                   const key = `${col}_${row}`;
-                  const occupant = boardMap[key];
-                  const isValidPlace = isMyZone && !occupant && !!selectedPiece && !loading;
-                  const isDimmed = !!selectedPiece && !isMyZone;
+                  const isLake = LAKE_CELLS.has(key);
+                  const occupant = isLake ? undefined : boardMap[key];
+                  const isValidPlace = !isLake && isMyZone && !occupant && !!selectedPiece && !loading;
+                  const isDimmed = !!selectedPiece && !isMyZone && !isLake;
 
                   let cellClass = "cell";
-                  if (isP1 && row <= 3) cellClass += " zone-p1";
-                  else if (!isP1 && row >= 6) cellClass += " zone-p2";
-                  if (isValidPlace) cellClass += " valid-place";
+                  if (isLake) cellClass += " lake-cell";
+                  else {
+                    if (isP1 && row <= 3) cellClass += " zone-p1";
+                    else if (!isP1 && row >= 6) cellClass += " zone-p2";
+                    if (isValidPlace) cellClass += " valid-place";
+                  }
 
-                  const isOwn = normalize(occupant?.owner ?? '0x0') === normalize(ACTIVE_PLAYER);
+                  const isOwn = normalize(occupant?.owner ?? "0x0") === normalize(ACTIVE_PLAYER);
                   const myPieceData = occupant ? myPieces.find(p => p.id === occupant.piece_id) : null;
 
                   return (
                     <div
-                      key={key}
-                      className={cellClass}
-                      style={!isP1 
-                        ? { transform: 'rotate(180deg)', ...(isDimmed ? { opacity: 0.35, filter: "brightness(0.5)" } : {}) }
-                        : isDimmed ? { opacity: 0.35, filter: "brightness(0.5)" } : undefined}
-                      onClick={() => isValidPlace && handleCellClick(col, row)}
+                      key={key} className={cellClass}
+                      style={cellCounterRotation ? {
+                        transform: cellCounterRotation,
+                        ...(isDimmed ? { opacity: 0.35, filter: "brightness(0.6)" } : {})
+                      } : isDimmed ? { opacity: 0.35, filter: "brightness(0.6)" } : undefined}
+                      onClick={() => !isLake && isValidPlace && handleCellClick(col, row)}
                     >
                       {occupant && (
-                        <div style={{
-                          width: 'calc(var(--cell) * 0.95)', height: 'calc(var(--cell) * 0.95)',
-                          position: 'relative',
-                          filter: isOwn
-                            ? 'drop-shadow(1px 3px 2px rgba(0,0,0,0.55)) drop-shadow(0 0 2px rgba(30,70,150,0.3))'
-                            : 'drop-shadow(1px 3px 2px rgba(0,0,0,0.55))',
-                        }}>
+                        <div style={{ width: "calc(var(--cell) * 0.88)", height: "calc(var(--cell) * 0.88)", position: "relative" }}>
                           {isOwn && myPieceData ? (
-                            <>
-                              <SoldierSilhouetteSVG pieceId={myPieceData.id} isOwn={true} />
-                              {/* Number top-left (no icon in placement) */}
-                              <div style={{
-                                position: 'absolute', top: 1, left: 2,
-                                fontFamily: 'var(--font-head)', fontWeight: 900,
-                                fontSize: 'calc(var(--cell) * 0.26)',
-                                color: '#ddeeff', textShadow: '0 1px 4px rgba(0,0,0,0.95)',
-                                lineHeight: 1, pointerEvents: 'none', zIndex: 3,
-                              }}>
-                                {myPieceData.rank === 0 ? 'F' : myPieceData.rank === 11 ? 'B' : myPieceData.rank}
-                              </div>
-                            </>
+                            <MedallionPiece rank={myPieceData.rank} isOwn={true} size="100%"/>
                           ) : (
-                            <SoldierSilhouetteSVG pieceId={occupant.piece_id + 1000} isOwn={false} dimmed={true} />
+                            <MedallionPiece rank={occupant.rank} isOwn={false} dimmed={true} size="100%"/>
                           )}
                         </div>
                       )}
@@ -401,22 +348,33 @@ export function PlacementPage({ gameId, playerAddress, account, onBattle, onLeav
                   );
                 })
               )}
-              {/* Lake blobs — irregular water SVG shapes */}
-              <div style={{
-                position: 'absolute', left: 'calc(2 * var(--cell) + 2px)', top: 'calc(4 * var(--cell) + 4px)',
-                width: 'calc(2 * var(--cell) + 1px)', height: 'calc(2 * var(--cell) + 1px)',
-                overflow: 'visible', pointerEvents: 'none',
-              }}>
-                <LakeBlob blobId="pl" />
+              {/* Lakes */}
+              <div style={{ position: "absolute", left: "calc(2 * var(--cell) + 2px)", top: "calc(4 * var(--cell) + 4px)", width: "calc(2 * var(--cell) + 1px)", height: "calc(2 * var(--cell) + 1px)", overflow: "visible", pointerEvents: "none" }}>
+                <ParchmentLake blobId="pl"/>
               </div>
-              <div style={{
-                position: 'absolute', left: 'calc(6 * var(--cell) + 6px)', top: 'calc(4 * var(--cell) + 4px)',
-                width: 'calc(2 * var(--cell) + 1px)', height: 'calc(2 * var(--cell) + 1px)',
-                overflow: 'visible', pointerEvents: 'none',
-              }}>
-                <LakeBlob blobId="pr" />
+              <div style={{ position: "absolute", left: "calc(6 * var(--cell) + 6px)", top: "calc(4 * var(--cell) + 4px)", width: "calc(2 * var(--cell) + 1px)", height: "calc(2 * var(--cell) + 1px)", overflow: "visible", pointerEvents: "none" }}>
+                <ParchmentLake blobId="pr"/>
               </div>
             </div>
+          </div>
+        </div>
+      </div>
+
+      {/* ══ RIGHT PANEL — Opponent ══ */}
+      <div className="placement-opponent-panel">
+        <div className="placement-panel-title opp">
+          <DiamondIndicator /> Opponent
+        </div>
+        <div className="placement-opp-avatar">
+          <img src="/assets/profile/opponent.webp" alt="" className="profile-avatar" onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}/>
+        </div>
+        <div className="placement-progress-block">
+          <div className="placement-progress-row">
+            <span className="placement-progress-sub">Placed:</span>
+            <span className="placement-progress-count">{oppPlaced}/10</span>
+          </div>
+          <div className="placement-progress-bar">
+            <div className="placement-progress-fill opp" style={{ width: `${(oppPlaced / 10) * 100}%` }} />
           </div>
         </div>
       </div>

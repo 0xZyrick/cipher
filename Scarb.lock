@@ -7,6 +7,9 @@ version = "0.1.0"
 dependencies = [
  "dojo",
  "dojo_cairo_test",
+ "game_components_embeddable_game_standard",
+ "game_components_interfaces",
+ "openzeppelin_introspection",
 ]
 
 [[package]]
@@ -31,4 +34,88 @@ source = "registry+https://scarbs.xyz/"
 checksum = "sha256:0cab4c86390b6ee9c3969b82d27f46ecd7f14e686b9868528506103944638465"
 dependencies = [
  "dojo",
+]
+
+[[package]]
+name = "game_components_embeddable_game_standard"
+version = "1.5.1"
+source = "git+https://github.com/Provable-Games/game-components?tag=v1.1.0-starknet-2.13.1#e5849002476d92962e5a043b607cfaf515478dce"
+dependencies = [
+ "game_components_interfaces",
+ "game_components_metagame",
+ "game_components_utilities",
+ "openzeppelin_interfaces",
+ "openzeppelin_introspection",
+ "openzeppelin_token",
+]
+
+[[package]]
+name = "game_components_interfaces"
+version = "1.5.1"
+source = "git+https://github.com/Provable-Games/game-components?tag=v1.1.0-starknet-2.13.1#e5849002476d92962e5a043b607cfaf515478dce"
+
+[[package]]
+name = "game_components_metagame"
+version = "1.5.1"
+source = "git+https://github.com/Provable-Games/game-components?tag=v1.1.0-starknet-2.13.1#e5849002476d92962e5a043b607cfaf515478dce"
+dependencies = [
+ "game_components_interfaces",
+ "game_components_utilities",
+ "openzeppelin_interfaces",
+ "openzeppelin_introspection",
+]
+
+[[package]]
+name = "game_components_utilities"
+version = "1.5.1"
+source = "git+https://github.com/Provable-Games/game-components?tag=v1.1.0-starknet-2.13.1#e5849002476d92962e5a043b607cfaf515478dce"
+dependencies = [
+ "game_components_embeddable_game_standard",
+ "game_components_interfaces",
+ "graffiti",
+]
+
+[[package]]
+name = "graffiti"
+version = "0.1.0"
+
+[[package]]
+name = "openzeppelin_access"
+version = "3.0.0-alpha.3"
+source = "git+https://github.com/OpenZeppelin/cairo-contracts.git?tag=v3.0.0-alpha.3#ba2228ec4070c9a7ac08d2833ebcf6bcf7ff70ac"
+dependencies = [
+ "openzeppelin_interfaces",
+ "openzeppelin_introspection",
+]
+
+[[package]]
+name = "openzeppelin_interfaces"
+version = "2.1.0-alpha.0"
+source = "git+https://github.com/OpenZeppelin/cairo-contracts.git?tag=v3.0.0-alpha.3#ba2228ec4070c9a7ac08d2833ebcf6bcf7ff70ac"
+
+[[package]]
+name = "openzeppelin_introspection"
+version = "3.0.0-alpha.3"
+source = "git+https://github.com/OpenZeppelin/cairo-contracts.git?tag=v3.0.0-alpha.3#ba2228ec4070c9a7ac08d2833ebcf6bcf7ff70ac"
+dependencies = [
+ "openzeppelin_interfaces",
+]
+
+[[package]]
+name = "openzeppelin_token"
+version = "3.0.0-alpha.3"
+source = "git+https://github.com/OpenZeppelin/cairo-contracts.git?tag=v3.0.0-alpha.3#ba2228ec4070c9a7ac08d2833ebcf6bcf7ff70ac"
+dependencies = [
+ "openzeppelin_access",
+ "openzeppelin_interfaces",
+ "openzeppelin_introspection",
+ "openzeppelin_utils",
+]
+
+[[package]]
+name = "openzeppelin_utils"
+version = "2.1.0-alpha.0"
+source = "git+https://github.com/OpenZeppelin/cairo-contracts.git?tag=v3.0.0-alpha.3#ba2228ec4070c9a7ac08d2833ebcf6bcf7ff70ac"
+dependencies = [
+ "openzeppelin_interfaces",
 ]

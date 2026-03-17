@@ -24,6 +24,9 @@ pub const P1_MAX_ROW: u8 = 3;
 pub const P2_MIN_ROW: u8 = 6;
 pub const EMPTY_SQUARE: u8 = 255;
 
+pub const POINTS_WIN: u32 = 100;
+pub const POINTS_LOSS: u32 = 10;
+
 #[derive(Copy, Drop, Serde, Debug)]
 #[dojo::model]
 pub struct Game {
@@ -54,6 +57,26 @@ pub struct PlayerGame {
     #[key]
     pub player: starknet::ContractAddress,
     pub game_id: felt252,
+}
+
+#[derive(Copy, Drop, Serde, Debug)]
+#[dojo::model]
+pub struct PlayerStats {
+    #[key]
+    pub player: starknet::ContractAddress,
+    pub wins: u32,
+    pub losses: u32,
+    pub points: u32,
+    pub last_session_id: felt252,
+}
+
+#[derive(Copy, Drop, Serde, Debug)]
+#[dojo::model]
+pub struct RewardClaim {
+    #[key]
+    pub game_id: felt252,
+    pub claimed: bool,
+    pub claimed_by: starknet::ContractAddress,
 }
 
 #[derive(Copy, Drop, Serde, Debug)]

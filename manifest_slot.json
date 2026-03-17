@@ -34,11 +34,14 @@
   "contracts": [
     {
       "address": "0x26c2a4d969b8bebaa6abf59f85e16c78251beb2e6e5b999e45cd6fe22e31d22",
-      "class_hash": "0x67e813e6447ea33167574ae492e090b5325ec739c13ef1c3c6ad9dadb7a9b20",
-      "init_calldata": [],
+      "class_hash": "0x4e529fb04bb5b2282165c10605deec95bb02b91b94efddd457fcc3cdd5f0181",
+      "init_calldata": [
+        "0x0142712722e62a38f9c40fcc904610e1a14c70125876ecaaf25d803556734467"
+      ],
       "tag": "cipher-actions",
       "selector": "0x71e56196571eea0ecadfeb0a46ebb46027e61505bc3bf63cb09dfa072638b77",
       "systems": [
+        "dojo_init",
         "create_game",
         "join_game",
         "place_piece",
@@ -46,6 +49,22 @@
         "move_piece",
         "resolve_combat",
         "forfeit",
+        "claim_reward",
+        "create_game_egs",
+        "upgrade"
+      ]
+    },
+    {
+      "address": "0x6e05238f0c95e62b8c412540373edb27eaf2bab1efd55f4cf86c8ed8fc0f804",
+      "class_hash": "0x449f6609c1f8cdae98ce7dcfd5ee4f4d1d6b7da95c1c82615a6c339faebecbc",
+      "init_calldata": [
+        "0x05683819EFB8866D7A455b5C056003a78AF92B402dc38a12ccd5359cF765BaCd",
+        "0x0142712722e62a38f9c40fcc904610e1a14c70125876ecaaf25d803556734467"
+      ],
+      "tag": "cipher-game_setup",
+      "selector": "0x15bc0374424d529556f1e81aedc37f7d41a32d24ea9b9109057f5f425cf8ca9",
+      "systems": [
+        "dojo_init",
         "upgrade"
       ]
     }
@@ -251,6 +270,60 @@
       "class_hash": "0xd22631213e23e2395152b160b7741165fa34af48c8baab4cde8ba7c69a67fe",
       "tag": "cipher-PlayerGame",
       "selector": "0x4ee4a641ee67d07074e699ebf9d4661b1865b648cfa808284a86b3aa967dac0"
+    },
+    {
+      "members": [
+        {
+          "name": "player",
+          "type": "core::starknet::contract_address::ContractAddress",
+          "key": true
+        },
+        {
+          "name": "wins",
+          "type": "core::integer::u32",
+          "key": false
+        },
+        {
+          "name": "losses",
+          "type": "core::integer::u32",
+          "key": false
+        },
+        {
+          "name": "points",
+          "type": "core::integer::u32",
+          "key": false
+        },
+        {
+          "name": "last_session_id",
+          "type": "core::felt252",
+          "key": false
+        }
+      ],
+      "class_hash": "0x6b2e3c069e1c81f95af275182180ee76e8408eb6bf9bd52d4ac46eab92cf4f3",
+      "tag": "cipher-PlayerStats",
+      "selector": "0x3ad5c22c7e177aa1057520f20a6eab45b24e0ba799c89287a4410a9d48e9523"
+    },
+    {
+      "members": [
+        {
+          "name": "game_id",
+          "type": "core::felt252",
+          "key": true
+        },
+        {
+          "name": "claimed",
+          "type": "core::bool",
+          "key": false
+        },
+        {
+          "name": "claimed_by",
+          "type": "core::starknet::contract_address::ContractAddress",
+          "key": false
+        }
+      ],
+      "class_hash": "0x804ef7390926db2cb1fc9ed1e641235e856c9e6fd8946b698ba678ba139488",
+      "tag": "cipher-RewardClaim",
+      "selector": "0x1c167af2c3d2f4ec7e8d073468caa3d9f43c44bf5536618c8658400dc39f48b"
     },
     {
       "members": [
@@ -590,6 +663,86 @@
     },
     {
       "type": "struct",
+      "name": "cipher::models::PlayerStats",
+      "members": [
+        {
+          "name": "player",
+          "type": "core::starknet::contract_address::ContractAddress"
+        },
+        {
+          "name": "wins",
+          "type": "core::integer::u32"
+        },
+        {
+          "name": "losses",
+          "type": "core::integer::u32"
+        },
+        {
+          "name": "points",
+          "type": "core::integer::u32"
+        },
+        {
+          "name": "last_session_id",
+          "type": "core::felt252"
+        }
+      ]
+    },
+    {
+      "type": "struct",
+      "name": "cipher::models::PlayerStatsValue",
+      "members": [
+        {
+          "name": "wins",
+          "type": "core::integer::u32"
+        },
+        {
+          "name": "losses",
+          "type": "core::integer::u32"
+        },
+        {
+          "name": "points",
+          "type": "core::integer::u32"
+        },
+        {
+          "name": "last_session_id",
+          "type": "core::felt252"
+        }
+      ]
+    },
+    {
+      "type": "struct",
+      "name": "cipher::models::RewardClaim",
+      "members": [
+        {
+          "name": "game_id",
+          "type": "core::felt252"
+        },
+        {
+          "name": "claimed",
+          "type": "core::bool"
+        },
+        {
+          "name": "claimed_by",
+          "type": "core::starknet::contract_address::ContractAddress"
+        }
+      ]
+    },
+    {
+      "type": "struct",
+      "name": "cipher::models::RewardClaimValue",
+      "members": [
+        {
+          "name": "claimed",
+          "type": "core::bool"
+        },
+        {
+          "name": "claimed_by",
+          "type": "core::starknet::contract_address::ContractAddress"
+        }
+      ]
+    },
+    {
+      "type": "struct",
       "name": "cipher::models::Square",
       "members": [
         {
@@ -655,6 +808,18 @@
     {
       "type": "event",
       "name": "cipher::models::m_PlayerGame::Event",
+      "kind": "enum",
+      "variants": []
+    },
+    {
+      "type": "event",
+      "name": "cipher::models::m_PlayerStats::Event",
+      "kind": "enum",
+      "variants": []
+    },
+    {
+      "type": "event",
+      "name": "cipher::models::m_RewardClaim::Event",
       "kind": "enum",
       "variants": []
     },
@@ -798,6 +963,34 @@
           ],
           "outputs": [],
           "state_mutability": "external"
+        },
+        {
+          "type": "function",
+          "name": "claim_reward",
+          "inputs": [
+            {
+              "name": "game_id",
+              "type": "core::felt252"
+            }
+          ],
+          "outputs": [],
+          "state_mutability": "external"
+        },
+        {
+          "type": "function",
+          "name": "create_game_egs",
+          "inputs": [
+            {
+              "name": "token_id",
+              "type": "core::felt252"
+            }
+          ],
+          "outputs": [
+            {
+              "type": "core::felt252"
+            }
+          ],
+          "state_mutability": "external"
         }
       ]
     },
@@ -815,6 +1008,33 @@
           "name": "WorldProviderEvent",
           "type": "dojo::contract::components::world_provider::world_provider_cpt::Event",
           "kind": "nested"
+        }
+      ]
+    },
+    {
+      "type": "event",
+      "name": "cipher::systems::game_setup::game_setup::Event",
+      "kind": "enum",
+      "variants": [
+        {
+          "name": "UpgradeableEvent",
+          "type": "dojo::contract::components::upgradeable::upgradeable_cpt::Event",
+          "kind": "nested"
+        },
+        {
+          "name": "WorldProviderEvent",
+          "type": "dojo::contract::components::world_provider::world_provider_cpt::Event",
+          "kind": "nested"
+        },
+        {
+          "name": "MinigameEvent",
+          "type": "game_components_embeddable_game_standard::minigame::minigame_component::MinigameComponent::Event",
+          "kind": "flat"
+        },
+        {
+          "name": "SRC5Event",
+          "type": "openzeppelin_introspection::src5::SRC5Component::Event",
+          "kind": "flat"
         }
       ]
     },
@@ -914,6 +1134,16 @@
       ]
     },
     {
+      "type": "struct",
+      "name": "core::array::Span::<game_components_interfaces::structs::metagame::GameContext>",
+      "members": [
+        {
+          "name": "snapshot",
+          "type": "@core::array::Array::<game_components_interfaces::structs::metagame::GameContext>"
+        }
+      ]
+    },
+    {
       "type": "enum",
       "name": "core::bool",
       "variants": [
@@ -947,11 +1177,81 @@
     },
     {
       "type": "enum",
+      "name": "core::option::Option::<core::byte_array::ByteArray>",
+      "variants": [
+        {
+          "name": "Some",
+          "type": "core::byte_array::ByteArray"
+        },
+        {
+          "name": "None",
+          "type": "()"
+        }
+      ]
+    },
+    {
+      "type": "enum",
+      "name": "core::option::Option::<core::felt252>",
+      "variants": [
+        {
+          "name": "Some",
+          "type": "core::felt252"
+        },
+        {
+          "name": "None",
+          "type": "()"
+        }
+      ]
+    },
+    {
+      "type": "enum",
       "name": "core::option::Option::<core::integer::u32>",
       "variants": [
         {
           "name": "Some",
           "type": "core::integer::u32"
+        },
+        {
+          "name": "None",
+          "type": "()"
+        }
+      ]
+    },
+    {
+      "type": "enum",
+      "name": "core::option::Option::<core::integer::u64>",
+      "variants": [
+        {
+          "name": "Some",
+          "type": "core::integer::u64"
+        },
+        {
+          "name": "None",
+          "type": "()"
+        }
+      ]
+    },
+    {
+      "type": "enum",
+      "name": "core::option::Option::<core::starknet::contract_address::ContractAddress>",
+      "variants": [
+        {
+          "name": "Some",
+          "type": "core::starknet::contract_address::ContractAddress"
+        },
+        {
+          "name": "None",
+          "type": "()"
+        }
+      ]
+    },
+    {
+      "type": "enum",
+      "name": "core::option::Option::<game_components_interfaces::structs::metagame::GameContextDetails>",
+      "variants": [
+        {
+          "name": "Some",
+          "type": "game_components_interfaces::structs::metagame::GameContextDetails"
         },
         {
           "name": "None",
@@ -2594,9 +2894,18 @@
     {
       "type": "function",
       "name": "dojo_init",
-      "inputs": [],
+      "inputs": [
+        {
+          "name": "creator_address",
+          "type": "core::starknet::contract_address::ContractAddress"
+        },
+        {
+          "name": "denshokan_address",
+          "type": "core::starknet::contract_address::ContractAddress"
+        }
+      ],
       "outputs": [],
-      "state_mutability": "view"
+      "state_mutability": "external"
     },
     {
       "type": "function",
@@ -2628,6 +2937,331 @@
       ],
       "outputs": [],
       "state_mutability": "view"
+    },
+    {
+      "type": "event",
+      "name": "game_components_embeddable_game_standard::minigame::minigame_component::MinigameComponent::Event",
+      "kind": "enum",
+      "variants": []
+    },
+    {
+      "type": "interface",
+      "name": "game_components_interfaces::minigame::core::IMinigame",
+      "items": [
+        {
+          "type": "function",
+          "name": "token_address",
+          "inputs": [],
+          "outputs": [
+            {
+              "type": "core::starknet::contract_address::ContractAddress"
+            }
+          ],
+          "state_mutability": "view"
+        },
+        {
+          "type": "function",
+          "name": "settings_address",
+          "inputs": [],
+          "outputs": [
+            {
+              "type": "core::starknet::contract_address::ContractAddress"
+            }
+          ],
+          "state_mutability": "view"
+        },
+        {
+          "type": "function",
+          "name": "objectives_address",
+          "inputs": [],
+          "outputs": [
+            {
+              "type": "core::starknet::contract_address::ContractAddress"
+            }
+          ],
+          "state_mutability": "view"
+        },
+        {
+          "type": "function",
+          "name": "mint_game",
+          "inputs": [
+            {
+              "name": "player_name",
+              "type": "core::option::Option::<core::felt252>"
+            },
+            {
+              "name": "settings_id",
+              "type": "core::option::Option::<core::integer::u32>"
+            },
+            {
+              "name": "start",
+              "type": "core::option::Option::<core::integer::u64>"
+            },
+            {
+              "name": "end",
+              "type": "core::option::Option::<core::integer::u64>"
+            },
+            {
+              "name": "objective_id",
+              "type": "core::option::Option::<core::integer::u32>"
+            },
+            {
+              "name": "context",
+              "type": "core::option::Option::<game_components_interfaces::structs::metagame::GameContextDetails>"
+            },
+            {
+              "name": "client_url",
+              "type": "core::option::Option::<core::byte_array::ByteArray>"
+            },
+            {
+              "name": "renderer_address",
+              "type": "core::option::Option::<core::starknet::contract_address::ContractAddress>"
+            },
+            {
+              "name": "skills_address",
+              "type": "core::option::Option::<core::starknet::contract_address::ContractAddress>"
+            },
+            {
+              "name": "to",
+              "type": "core::starknet::contract_address::ContractAddress"
+            },
+            {
+              "name": "soulbound",
+              "type": "core::bool"
+            },
+            {
+              "name": "paymaster",
+              "type": "core::bool"
+            },
+            {
+              "name": "salt",
+              "type": "core::integer::u16"
+            },
+            {
+              "name": "metadata",
+              "type": "core::integer::u16"
+            }
+          ],
+          "outputs": [
+            {
+              "type": "core::felt252"
+            }
+          ],
+          "state_mutability": "view"
+        },
+        {
+          "type": "function",
+          "name": "mint_game_batch",
+          "inputs": [
+            {
+              "name": "mints",
+              "type": "core::array::Array::<game_components_interfaces::structs::minigame::MintGameParams>"
+            }
+          ],
+          "outputs": [
+            {
+              "type": "core::array::Array::<core::felt252>"
+            }
+          ],
+          "state_mutability": "view"
+        }
+      ]
+    },
+    {
+      "type": "interface",
+      "name": "game_components_interfaces::minigame::core::IMinigameTokenData",
+      "items": [
+        {
+          "type": "function",
+          "name": "score",
+          "inputs": [
+            {
+              "name": "token_id",
+              "type": "core::felt252"
+            }
+          ],
+          "outputs": [
+            {
+              "type": "core::integer::u64"
+            }
+          ],
+          "state_mutability": "view"
+        },
+        {
+          "type": "function",
+          "name": "game_over",
+          "inputs": [
+            {
+              "name": "token_id",
+              "type": "core::felt252"
+            }
+          ],
+          "outputs": [
+            {
+              "type": "core::bool"
+            }
+          ],
+          "state_mutability": "view"
+        },
+        {
+          "type": "function",
+          "name": "score_batch",
+          "inputs": [
+            {
+              "name": "token_ids",
+              "type": "core::array::Span::<core::felt252>"
+            }
+          ],
+          "outputs": [
+            {
+              "type": "core::array::Array::<core::integer::u64>"
+            }
+          ],
+          "state_mutability": "view"
+        },
+        {
+          "type": "function",
+          "name": "game_over_batch",
+          "inputs": [
+            {
+              "name": "token_ids",
+              "type": "core::array::Span::<core::felt252>"
+            }
+          ],
+          "outputs": [
+            {
+              "type": "core::array::Array::<core::bool>"
+            }
+          ],
+          "state_mutability": "view"
+        }
+      ]
+    },
+    {
+      "type": "struct",
+      "name": "game_components_interfaces::structs::metagame::GameContext",
+      "members": [
+        {
+          "name": "name",
+          "type": "core::felt252"
+        },
+        {
+          "name": "value",
+          "type": "core::felt252"
+        }
+      ]
+    },
+    {
+      "type": "struct",
+      "name": "game_components_interfaces::structs::metagame::GameContextDetails",
+      "members": [
+        {
+          "name": "name",
+          "type": "core::byte_array::ByteArray"
+        },
+        {
+          "name": "description",
+          "type": "core::byte_array::ByteArray"
+        },
+        {
+          "name": "id",
+          "type": "core::option::Option::<core::integer::u32>"
+        },
+        {
+          "name": "context",
+          "type": "core::array::Span::<game_components_interfaces::structs::metagame::GameContext>"
+        }
+      ]
+    },
+    {
+      "type": "struct",
+      "name": "game_components_interfaces::structs::minigame::MintGameParams",
+      "members": [
+        {
+          "name": "player_name",
+          "type": "core::option::Option::<core::felt252>"
+        },
+        {
+          "name": "settings_id",
+          "type": "core::option::Option::<core::integer::u32>"
+        },
+        {
+          "name": "start",
+          "type": "core::option::Option::<core::integer::u64>"
+        },
+        {
+          "name": "end",
+          "type": "core::option::Option::<core::integer::u64>"
+        },
+        {
+          "name": "objective_id",
+          "type": "core::option::Option::<core::integer::u32>"
+        },
+        {
+          "name": "context",
+          "type": "core::option::Option::<game_components_interfaces::structs::metagame::GameContextDetails>"
+        },
+        {
+          "name": "client_url",
+          "type": "core::option::Option::<core::byte_array::ByteArray>"
+        },
+        {
+          "name": "renderer_address",
+          "type": "core::option::Option::<core::starknet::contract_address::ContractAddress>"
+        },
+        {
+          "name": "skills_address",
+          "type": "core::option::Option::<core::starknet::contract_address::ContractAddress>"
+        },
+        {
+          "name": "to",
+          "type": "core::starknet::contract_address::ContractAddress"
+        },
+        {
+          "name": "soulbound",
+          "type": "core::bool"
+        },
+        {
+          "name": "paymaster",
+          "type": "core::bool"
+        },
+        {
+          "name": "salt",
+          "type": "core::integer::u16"
+        },
+        {
+          "name": "metadata",
+          "type": "core::integer::u16"
+        }
+      ]
+    },
+    {
+      "type": "interface",
+      "name": "openzeppelin_interfaces::introspection::ISRC5",
+      "items": [
+        {
+          "type": "function",
+          "name": "supports_interface",
+          "inputs": [
+            {
+              "name": "interface_id",
+              "type": "core::felt252"
+            }
+          ],
+          "outputs": [
+            {
+              "type": "core::bool"
+            }
+          ],
+          "state_mutability": "view"
+        }
+      ]
+    },
+    {
+      "type": "event",
+      "name": "openzeppelin_introspection::src5::SRC5Component::Event",
+      "kind": "enum",
+      "variants": []
     }
   ]
 }
